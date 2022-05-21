@@ -46,10 +46,14 @@ int ioctl(int filedes, unsigned long request, void *argp) {
         printf("NV_ESC_RM_CONTROL client: %x object: %x cmd: %8x flags: %x\n", p->hClient, p->hObject, p->cmd, p->flags);
       } break;
       case NV_ESC_RM_ALLOC: {
-        NVOS21_PARAMETERS *pApi = (NVOS21_PARAMETERS *)argp;
-        printf("NV_ESC_RM_ALLOC\n");
+        NVOS21_PARAMETERS *p = (NVOS21_PARAMETERS *)argp;
+        printf("NV_ESC_RM_ALLOC hRoot: %x hObjectParent: %x hObjectNew: %x\n", p->hRoot, p->hObjectParent, p->hObjectNew);
       } break;
-      case NV_ESC_RM_MAP_MEMORY: printf("NV_ESC_RM_MAP_MEMORY\n"); break;
+      case NV_ESC_RM_MAP_MEMORY: {
+        NVOS33_PARAMETERS *p = (NVOS33_PARAMETERS *)argp;
+        printf("NV_ESC_RM_MAP_MEMORY hDevice: %x hMemory: %x pLinearAddress: %p offset: %llx length %llx\n",
+          p->hDevice, p->hMemory, p->pLinearAddress, p->offset, p->length);
+      } break;
       case NV_ESC_RM_UPDATE_DEVICE_MAPPING_INFO: printf("NV_ESC_RM_UPDATE_DEVICE_MAPPING_INFO\n"); break;
       case NV_ESC_RM_VID_HEAP_CONTROL: {
         NVOS32_PARAMETERS *pApi = (NVOS32_PARAMETERS *)argp;
@@ -65,6 +69,8 @@ int ioctl(int filedes, unsigned long request, void *argp) {
             printf("    width:   %d\n", asz.width);
           }
           printf("     size:   %llx (%.2f MB)\n", asz.size, asz.size/1e6);
+          printf("   offset:   %llx\n", asz.offset);
+          //printf("  address:   %p\n", asz.address);
         }
       } break;
       default:

@@ -1,4 +1,6 @@
 #!/bin/bash -e
+export CUDA_VISIBLE_DEVICES=0
+
 mkdir -p out
 cd out
 #g++ -I/usr/local/cuda/targets/x86_64-linux/include -c ../direct.cc -o direct.o

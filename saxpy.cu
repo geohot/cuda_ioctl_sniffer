@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <cuda.h>
 #include <signal.h>
+#include <unistd.h>
+#include <sys/mman.h>
 
 extern "C" {
 extern const unsigned long long fatbinData[346];
@@ -65,6 +67,25 @@ int main(int argc, char *argv[]) {
 
   float ratio = 2.0f;
   void *args[] = { &N, &ratio, &d_x, &d_y };
+
+  munmap((void*)0x200200000, 0x200400000-0x200200000);    // /dev/nvidiactl
+  //munmap((void*)0x200400000, 0x200600000-0x200400000);    // /dev/nvidia0    NEEDED
+  //munmap((void*)0x200600000, 0x203600000-0x200600000);    // /dev/nvidiactl  NEEDED
+  //munmap((void*)0x204600000, 0x204800000-0x204600000);    // /dev/nvidiactl  NEEDED
+  munmap((void*)0x204800000, 0x204a00000-0x204800000);    // /dev/nvidiactl
+  munmap((void*)0x204a00000, 0x204c00000-0x204a00000);    // /dev/nvidia-uvm
+  munmap((void*)0x204c00000, 0x204e00000-0x204c00000);    // /dev/nvidiactl
+  //munmap((void*)0x205000000, 0x205200000-0x205000000);    // /dev/nvidiactl  NEEDED AFTER LAUNCH
+
+  char buf[0x10000];
+  FILE *f = fopen("/proc/self/maps", "rb");
+  //FILE *f = fopen("/proc/self/pagemap", "rb");
+  buf[fread(buf, 1, sizeof(buf), f)] = '\0';
+  printf("%s\n", buf);
+
+  //while (1) sleep(1);
+
+  // calls into /lib/x86_64-linux-gnu/libcuda.so.515.43.04
   cuLaunchKernel(saxpy_f, (N+255)/256, 1, 1, 256, 1, 1, 0, 0, args, NULL);
 
   printf("***** exit memcpy\n");
@@ -74,6 +95,7 @@ int main(int argc, char *argv[]) {
   for (int i = 0; i < N; i++)
     maxError = max(maxError, abs(y[i]-4.0f));
   printf("Max error: %f\n", maxError);
+  if (maxError > 0.01) { printf("FAILLLLLLLLED\n"); exit(-1); }
 
   printf("***** print memory 2\n");
   cudaMemGetInfo(&free_byte, &total_byte);
