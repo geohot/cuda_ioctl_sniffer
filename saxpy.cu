@@ -48,18 +48,7 @@ int main(void)
 
   // Perform SAXPY on 1M elements
   printf("***** launch\n");
-  raise(SIGTRAP);
-  /*
-  __cudaPushCallConfiguration
-    __cudart657
-    __cudart656
-    __cudart1612
-    __cudart656
-    __cudart657
-    __cudart530
-    __cudart657
-  */
-
+  //raise(SIGTRAP);
   saxpy<<<(N+255)/256, 256>>>(N, 2.0f, d_x, d_y);
 
   printf("***** exit memcpy\n");
