@@ -31,6 +31,14 @@ int main(int argc, char *argv[]) {
   CUcontext pctx;
   cuCtxCreate(&pctx, 0, pdev);
 
+  printf("***** get function\n");
+  CUmodule mod = 0;
+  cuModuleLoadFatBinary(&mod, fatbinData);
+
+  CUfunction saxpy_f = 0;
+  cuModuleGetFunction(&saxpy_f, mod, "_Z5saxpyifPfS_");
+  printf("function 0x%X\n", saxpy_f);
+
   printf("***** print memory\n");
   size_t free_byte, total_byte;
   cudaMemGetInfo(&free_byte, &total_byte);
@@ -53,29 +61,11 @@ int main(int argc, char *argv[]) {
   // Perform SAXPY on 1M elements
   printf("***** launch\n");
   //raise(SIGTRAP);
-
-  /*if (argc > 99) {
-    saxpy<<<(N+255)/256, 256>>>(N, 2.0f, d_x, d_y);
-  } else {
-    printf("using stubs for launch\n");
-    direct(N, 2.0f, d_x, d_y);
-
-  }*/
+  //saxpy<<<(N+255)/256, 256>>>(N, 2.0f, d_x, d_y);
 
   float ratio = 2.0f;
   void *args[] = { &N, &ratio, &d_x, &d_y };
-  unsigned int threads = 256;
-  unsigned int blocks = (N + 255) / threads;
-
-  CUmodule mod = 0;
-  cuModuleLoadFatBinary(&mod, fatbinData);
-
-  CUfunction saxpy_f = 0;
-  cuModuleGetFunction(&saxpy_f, mod, "_Z5saxpyifPfS_");
-  printf("function 0x%X\n", saxpy_f);
-
-  cuLaunchKernel(saxpy_f, blocks, 1, 1, threads, 1, 1, 0, 0, args, NULL);
-
+  cuLaunchKernel(saxpy_f, (N+255)/256, 1, 1, 256, 1, 1, 0, 0, args, NULL);
 
   printf("***** exit memcpy\n");
   cudaMemcpy(y, d_y, N*sizeof(float), cudaMemcpyDeviceToHost);
