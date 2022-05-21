@@ -2,6 +2,10 @@
 #include <cuda.h>
 #include <signal.h>
 
+//extern void __device_stub__Z5saxpyifPfS_(int, float, float *, float *);
+
+void direct(int N, float par1, float *d_x, float *d_y);
+
 __global__
 void saxpy(int n, float a, float *x, float *y)
 {
@@ -9,8 +13,8 @@ void saxpy(int n, float a, float *x, float *y)
   if (i < n) y[i] = a*x[i] + y[i];
 }
 
-int main(void)
-{
+
+int main(int argc, char *argv[]) {
   int N = 1<<20;
   float *x, *y, *d_x, *d_y;
   x = (float*)malloc(N*sizeof(float));
@@ -49,7 +53,13 @@ int main(void)
   // Perform SAXPY on 1M elements
   printf("***** launch\n");
   //raise(SIGTRAP);
-  saxpy<<<(N+255)/256, 256>>>(N, 2.0f, d_x, d_y);
+
+  if (argc > 99) {
+    saxpy<<<(N+255)/256, 256>>>(N, 2.0f, d_x, d_y);
+  } else {
+    printf("using stubs for launch\n");
+    direct(N, 2.0f, d_x, d_y);
+  }
 
   printf("***** exit memcpy\n");
   cudaMemcpy(y, d_y, N*sizeof(float), cudaMemcpyDeviceToHost);
