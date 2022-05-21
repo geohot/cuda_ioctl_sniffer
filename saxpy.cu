@@ -2,9 +2,9 @@
 #include <cuda.h>
 #include <signal.h>
 
-//extern void __device_stub__Z5saxpyifPfS_(int, float, float *, float *);
-
-void direct(int N, float par1, float *d_x, float *d_y);
+extern "C" {
+extern const unsigned long long fatbinData[346];
+}
 
 __global__
 void saxpy(int n, float a, float *x, float *y)
@@ -54,12 +54,28 @@ int main(int argc, char *argv[]) {
   printf("***** launch\n");
   //raise(SIGTRAP);
 
-  if (argc > 99) {
+  /*if (argc > 99) {
     saxpy<<<(N+255)/256, 256>>>(N, 2.0f, d_x, d_y);
   } else {
     printf("using stubs for launch\n");
     direct(N, 2.0f, d_x, d_y);
-  }
+
+  }*/
+
+  float ratio = 2.0f;
+  void *args[] = { &N, &ratio, &d_x, &d_y };
+  unsigned int threads = 256;
+  unsigned int blocks = (N + 255) / threads;
+
+  CUmodule mod = 0;
+  cuModuleLoadFatBinary(&mod, fatbinData);
+
+  CUfunction saxpy_f = 0;
+  cuModuleGetFunction(&saxpy_f, mod, "_Z5saxpyifPfS_");
+  printf("function 0x%X\n", saxpy_f);
+
+  cuLaunchKernel(saxpy_f, blocks, 1, 1, threads, 1, 1, 0, 0, args, NULL);
+
 
   printf("***** exit memcpy\n");
   cudaMemcpy(y, d_y, N*sizeof(float), cudaMemcpyDeviceToHost);
