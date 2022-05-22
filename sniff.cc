@@ -31,17 +31,25 @@
 
 extern "C" {
 
+void *(*my_mmap)(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
+#undef mmap
+void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset) {
+  if (my_mmap == NULL) my_mmap = reinterpret_cast<decltype(my_mmap)>(dlsym(RTLD_NEXT, "mmap"));
+  void *ret = my_mmap(addr, length, prot, flags, fd, offset);
+
+  printf("mmapped %p (target %p) with flags 0x%x length %zx\n", ret, addr, flags, length);
+  return ret;
+}
+
 int (*my_ioctl)(int filedes, unsigned long request, void *argp) = NULL;
 #undef ioctl
 int ioctl(int filedes, unsigned long request, void *argp) {
   if (my_ioctl == NULL) my_ioctl = reinterpret_cast<decltype(my_ioctl)>(dlsym(RTLD_NEXT, "ioctl"));
+  int ret = my_ioctl(filedes, request, argp);
 
   uint8_t type = (request >> 8) & 0xFF;
   uint8_t nr = (request >> 0) & 0xFF;
   uint16_t size = (request >> 16) & 0xFFF;
-
-  // run first
-  int ret = my_ioctl(filedes, request, argp);
 
   if (type == NV_IOCTL_MAGIC) {
     printf("%3d 0x%3x ", filedes, size);
@@ -62,7 +70,7 @@ int ioctl(int filedes, unsigned long request, void *argp) {
       } break;
       case NV_ESC_RM_FREE: printf("NV_ESC_RM_FREE\n"); break;
       case NV_ESC_RM_CONTROL: {
-        char *cmd_string = "";
+        const char *cmd_string = "";
         NVOS54_PARAMETERS *p = (NVOS54_PARAMETERS *)argp;
         switch (p->cmd) {
           case NV0000_CTRL_CMD_SYSTEM_GET_BUILD_VERSION: cmd_string = "NV0000_CTRL_CMD_SYSTEM_GET_BUILD_VERSION"; break;
