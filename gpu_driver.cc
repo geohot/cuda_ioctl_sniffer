@@ -3,6 +3,7 @@
 #include "nouveau.h"
 #include "shadow.h"
 
+#include <thread>
 #include <cuda.h>
 #include <unistd.h>
 #include <sys/mman.h>
@@ -59,23 +60,58 @@ int main(int argc, char *argv[]) {
   PUSH_DATA(push, 0x0);
   uint64_t sz = (uint64_t)push->cur - cmdq;
   *((uint64_t*)0x2004003f0) = cmdq | (sz << 40) | 0x20000000000;
+  *((uint64_t*)0x200402040) = 0x6540dc;
+  *((uint64_t*)0x200402044) = 0x6540dc;
+  *((uint64_t*)0x20040204c) = 2;
+  *((uint64_t*)0x200402060) = 2;
+  *((uint64_t*)0x200402088) = 0x7f;
+  *((uint64_t*)0x20040208c) = 0x7f;
+
+  // kick
+  printf("val %x\n", *((volatile uint32_t*)0x7ffff7fb9090));
+  *((volatile uint32_t*)0x7ffff7fb9090) = 0xD;
+  //*((volatile uint32_t*)0x7ffff7fb9090) = 0x20019;
+  usleep(50*1000);
 
   //hexdump((uint8_t*)0x7ffff7fb9090, 0x10);
   //dump_proc_self_maps();
 
-  // unmap top bar page
-  /*munmap((void*)0x7ffff7fb9000, 0x10000);
+  // unmap top bar page*
+  /*uint8_t page[0x1000];
+  memcpy(page, (void*)0x7ffff7fb9000, 0x1000);
+  munmap((void*)0x7ffff7fb9000, 0x10000);
   void *ret = mmap((void*)0x7ffff7fb9000, 0x1000, PROT_READ | PROT_WRITE, MAP_FIXED | MAP_SHARED | MAP_ANON, -1, 0);
-  assert(ret == (void*)0x7ffff7fb9000);*/
+  assert(ret == (void*)0x7ffff7fb9000);
+  memcpy((void*)0x7ffff7fb9000, page, 0x1000);*/
+
+  /*std::thread t([](){
+    while (1) {
+      for (uint32_t *p = (uint32_t *)0x7ffff7fb9000; p < (uint32_t *)0x7ffff7fba000; p++) {
+        if (*p) printf("%p: %x\n", p, *p);
+      }
+      usleep(50*1000);
+    }
+  });*/
+
+  /*sleep(1);
+  printf("async\n");
 
   uint8_t junk2[] = {0xaa,0xbb,0xcc,0xDd,0x55,0x66,0x77,0x88};
   cuMemcpy((CUdeviceptr)d_x, (CUdeviceptr)junk2, 8);
-  //cuMemcpyAsync((CUdeviceptr)d_x, (CUdeviceptr)junk2, 8, 0);
-  //sleep(1);
+  sleep(1);
+  for (uint32_t *p = (uint32_t *)0x7ffff7fb9000; p < (uint32_t *)0x7ffff7fba000; p++) {
+    if (*p) printf("%p: %x\n", p, *p);
+  }
+  exit(0);*/
+
+  /*uint8_t junk2[] = {0xaa,0xbb,0xcc,0xDd,0x55,0x66,0x77,0x88};
+  cuMemcpy((CUdeviceptr)d_x, (CUdeviceptr)junk2, 8);*/
 
   dump_gpu_ctrl();
   dump_command_buffer(0x2004003e8);
   dump_command_buffer(0x2004003f0);
+
+  //hexdump((uint8_t*)0x7ffff7fb9000, 0x100);
 
   //shadow::diff(maps_i0);
 

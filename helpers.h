@@ -6,10 +6,10 @@ void clear_gpu_ctrl() {
   memset((void*)0x200400000, 0, 0x203600000-0x200400000);
 }
 
-void hexdump(uint8_t *d, int l) {
+void hexdump(void *d, int l) {
   for (int i = 0; i < l; i++) {
     if (i%0x10 == 0 && i != 0) printf("\n");
-    printf("%2.2X ", d[i]);
+    printf("%2.2X ", ((uint8_t*)d)[i]);
   }
   printf("\n");
 }
