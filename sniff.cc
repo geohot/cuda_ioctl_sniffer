@@ -18,22 +18,13 @@
 #include "src/common/sdk/nvidia/inc/ctrl/ctrl0000/ctrl0000client.h"
 #include "src/common/sdk/nvidia/inc/ctrl/ctrl0000/ctrl0000gpu.h"
 #include "src/common/sdk/nvidia/inc/ctrl/ctrl0000/ctrl0000syncgpuboost.h"
-#include "src/common/sdk/nvidia/inc/ctrl/ctrl0080/ctrl0080gpu.h"
-#include "src/common/sdk/nvidia/inc/ctrl/ctrl0080/ctrl0080host.h"
-#include "src/common/sdk/nvidia/inc/ctrl/ctrl0080/ctrl0080fifo.h"
-#include "src/common/sdk/nvidia/inc/ctrl/ctrl0080/ctrl0080fb.h"
-#include "src/common/sdk/nvidia/inc/ctrl/ctrl2080/ctrl2080nvlink.h"
-#include "src/common/sdk/nvidia/inc/ctrl/ctrl2080/ctrl2080gsp.h"
-#include "src/common/sdk/nvidia/inc/ctrl/ctrl2080/ctrl2080gpu.h"
-#include "src/common/sdk/nvidia/inc/ctrl/ctrl2080/ctrl2080rc.h"
-#include "src/common/sdk/nvidia/inc/ctrl/ctrl2080/ctrl2080fb.h"
-#include "src/common/sdk/nvidia/inc/ctrl/ctrl2080/ctrl2080bus.h"
-#include "src/common/sdk/nvidia/inc/ctrl/ctrl2080/ctrl2080mc.h"
-#include "src/common/sdk/nvidia/inc/ctrl/ctrl2080/ctrl2080perf.h"
-#include "src/common/sdk/nvidia/inc/ctrl/ctrl2080/ctrl2080ce.h"
+#include "src/common/sdk/nvidia/inc/ctrl/ctrl0080.h"
+#include "src/common/sdk/nvidia/inc/ctrl/ctrl2080.h"
 #include "src/common/sdk/nvidia/inc/ctrl/ctrl83de/ctrl83dedebug.h"
+#include "src/common/sdk/nvidia/inc/ctrl/ctrl906f.h"
 #include "src/common/sdk/nvidia/inc/ctrl/ctrlc36f.h"
 #include "src/common/sdk/nvidia/inc/ctrl/ctrla06c.h"
+#include "src/common/sdk/nvidia/inc/ctrl/ctrla06f/ctrla06fgpfifo.h"
 
 #include <map>
 std::map<int, std::string> files;
@@ -177,6 +168,8 @@ int ioctl(int filedes, unsigned long request, void *argp) {
           case NV0000_CTRL_CMD_SYNC_GPU_BOOST_GROUP_INFO: cmd_string = "NV0000_CTRL_CMD_SYNC_GPU_BOOST_GROUP_INFO"; break;
           case NV0000_CTRL_CMD_CLIENT_GET_ADDR_SPACE_TYPE: cmd_string = "NV0000_CTRL_CMD_CLIENT_GET_ADDR_SPACE_TYPE"; break;
           case NV0000_CTRL_CMD_CLIENT_SET_INHERITED_SHARE_POLICY: cmd_string = "NV0000_CTRL_CMD_CLIENT_SET_INHERITED_SHARE_POLICY"; break;
+          cmd(NV0000_CTRL_CMD_SYSTEM_GET_P2P_CAPS_MATRIX);
+          cmd(NV0000_CTRL_CMD_GPU_DETACH_IDS);
           case NV0080_CTRL_CMD_GPU_GET_CLASSLIST: cmd_string = "NV0080_CTRL_CMD_GPU_GET_CLASSLIST"; break;
           case NV0080_CTRL_CMD_GPU_GET_NUM_SUBDEVICES: cmd_string = "NV0080_CTRL_CMD_GPU_GET_NUM_SUBDEVICES"; break;
           case NV0080_CTRL_CMD_GPU_GET_VIRTUALIZATION_MODE: cmd_string = "NV0080_CTRL_CMD_GPU_GET_VIRTUALIZATION_MODE"; break;
@@ -184,6 +177,10 @@ int ioctl(int filedes, unsigned long request, void *argp) {
           case NV0080_CTRL_CMD_FIFO_GET_CHANNELLIST: cmd_string = "NV0080_CTRL_CMD_FIFO_GET_CHANNELLIST"; break;
           case NV0080_CTRL_CMD_FIFO_GET_CAPS: cmd_string = "NV0080_CTRL_CMD_FIFO_GET_CAPS"; break;
           case NV0080_CTRL_CMD_FB_GET_CAPS: cmd_string = "NV0080_CTRL_CMD_FB_GET_CAPS"; break;
+          cmd(NV0080_CTRL_CMD_GR_GET_CAPS);
+          cmd(NV0080_CTRL_CMD_BSP_GET_CAPS);
+          cmd(NV0080_CTRL_CMD_MSENC_GET_CAPS);
+          cmd(NV0080_CTRL_CMD_FIFO_GET_CAPS_V2);
           case NV2080_CTRL_CMD_GPU_GET_INFO: cmd_string = "NV2080_CTRL_CMD_GPU_GET_INFO"; break;
           case NV2080_CTRL_CMD_GPU_GET_SIMULATION_INFO: cmd_string = "NV2080_CTRL_CMD_GPU_GET_SIMULATION_INFO"; break;
           case NV2080_CTRL_CMD_GPU_GET_ACTIVE_PARTITION_IDS: cmd_string = "NV2080_CTRL_CMD_GPU_GET_ACTIVE_PARTITION_IDS"; break;
@@ -193,7 +190,12 @@ int ioctl(int filedes, unsigned long request, void *argp) {
           case NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS: cmd_string = "NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS"; break;
           case NV2080_CTRL_CMD_GPU_GET_ENGINES: cmd_string = "NV2080_CTRL_CMD_GPU_GET_ENGINES"; break;
           case NV2080_CTRL_CMD_GPU_QUERY_COMPUTE_MODE_RULES: cmd_string = "NV2080_CTRL_CMD_GPU_QUERY_COMPUTE_MODE_RULES"; break;
+          cmd(NV2080_CTRL_CMD_GPU_GET_ENGINES_V2);
+          cmd(NV2080_CTRL_CMD_GPU_GET_INFO_V2);
           cmd(NV2080_CTRL_CMD_MC_SERVICE_INTERRUPTS);
+          cmd(NV2080_CTRL_CMD_TIMER_GET_GPU_CPU_TIME_CORRELATION_INFO);
+          cmd(NVA06F_CTRL_CMD_BIND);
+          cmd(NVA06F_CTRL_CMD_GPFIFO_SCHEDULE);
           case NV2080_CTRL_CMD_RC_GET_WATCHDOG_INFO: cmd_string = "NV2080_CTRL_CMD_RC_GET_WATCHDOG_INFO"; break;
           case NV2080_CTRL_CMD_RC_RELEASE_WATCHDOG_REQUESTS: cmd_string = "NV2080_CTRL_CMD_RC_RELEASE_WATCHDOG_REQUESTS"; break;
           case NV2080_CTRL_CMD_RC_SOFT_DISABLE_WATCHDOG: cmd_string = "NV2080_CTRL_CMD_RC_SOFT_DISABLE_WATCHDOG"; break;
@@ -215,9 +217,11 @@ int ioctl(int filedes, unsigned long request, void *argp) {
           case NV2080_CTRL_CMD_CE_GET_CAPS: cmd_string = "NV2080_CTRL_CMD_CE_GET_CAPS"; break;
           case NVC36F_CTRL_GET_CLASS_ENGINEID: cmd_string = "NVC36F_CTRL_GET_CLASS_ENGINEID"; break;
           case NVC36F_CTRL_CMD_GPFIFO_GET_WORK_SUBMIT_TOKEN: cmd_string = "NVC36F_CTRL_CMD_GPFIFO_GET_WORK_SUBMIT_TOKEN"; break;
+          cmd(NV906F_CTRL_GET_CLASS_ENGINEID);
           case NVA06C_CTRL_CMD_GPFIFO_SCHEDULE: cmd_string = "NVA06C_CTRL_CMD_GPFIFO_SCHEDULE"; break;
           case NVA06C_CTRL_CMD_SET_TIMESLICE: cmd_string = "NVA06C_CTRL_CMD_SET_TIMESLICE"; break;
           case NV83DE_CTRL_CMD_DEBUG_SET_EXCEPTION_MASK: cmd_string = "NV83DE_CTRL_CMD_DEBUG_SET_EXCEPTION_MASK"; break;
+          default: cmd_string = "UNKNOWN"; break;
         }
         #undef cmd
         printf("NV_ESC_RM_CONTROL client: %x object: %x cmd: %8x %s flags: %x\n", p->hClient, p->hObject, p->cmd, cmd_string, p->flags);
