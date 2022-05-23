@@ -49,12 +49,24 @@ static void handler(int sig, siginfo_t *si, void *unused) {
   uint64_t rdx = u->uc_mcontext.gregs[REG_RDX];
   uint64_t addr = (uint64_t)si->si_addr-(uint64_t)fake+(uint64_t)realfake;
   printf("HOOK 0x%lx = %x\n", addr, rdx);
+  uint32_t *base = (uint32_t*)(0x200400000 + ((rdx&0xFFFF)-0xd)*0x3000);
+  printf("base %p range %d-%d\n", base, base[0x2088/4], base[0x208c/4]);
 
-  for (int i = 0; i < 0x200000/4; i++) {
+  // 0x200400000 = 0xd
+  // 0x200403000 = 0xe
+  // 0x200406000 = 0xf
+  // 0x200409000 = 0x10
+
+  /*for (int i = 0; i < 0x200000/4; i++) {
     if (queues[i] != shadow_queues[i]) {
       printf("%p = %x\n", &queues[i], queues[i]);
       shadow_queues[i] = queues[i];
     }
+  }*/
+
+  for (int q = base[0x2088/4]; q < base[0x208c/4]; q++) {
+    uint64_t qq = ((uint64_t)base[q*2+1]<<32) | base[q*2];
+    dump_command_buffer((uint64_t)&base[q*2]);
   }
   real[0x90/4] = rdx;
 
@@ -85,7 +97,7 @@ void *mmap64(void *addr, size_t length, int prot, int flags, int fd, off_t offse
     ret = fake = (uint32_t *)mmap(NULL, length, PROT_NONE, MAP_SHARED | MAP_ANON, -1, 0);
   }
 
-  printf("mmapped(64) %p (target %p) with flags 0x%x length %zx\n", ret, addr, flags, length);
+  printf("mmapped(64) %p (target %p) with flags 0x%x length %zx fd %d\n", ret, addr, flags, length, fd);
   return ret;
 }
 
@@ -96,7 +108,7 @@ void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
   if (my_mmap == NULL) my_mmap = reinterpret_cast<decltype(my_mmap)>(dlsym(RTLD_NEXT, "mmap"));
   void *ret = my_mmap(addr, length, prot, flags, fd, offset);
 
-  printf("mmapped %p (target %p) with flags 0x%x length %zx\n", ret, addr, flags, length);
+  printf("mmapped %p (target %p) with flags 0x%x length %zx fd %d\n", ret, addr, flags, length, fd);
   return ret;
 }
 

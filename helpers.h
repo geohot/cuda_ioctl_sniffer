@@ -37,7 +37,7 @@ void dump_proc_self_maps() {
 
 void dump_command_buffer_start_sz(uint32_t *sp, uint32_t sz) {
   uint32_t *ptr = sp;
-  printf("size: %x\n", sz);
+  //printf("size: %x\n", sz);
   while (ptr != sp + (sz/4)) {
     uint32_t dat = *ptr;
     int type = (dat>>28)&0xF;
@@ -119,9 +119,10 @@ void dump_command_buffer_start_sz(uint32_t *sp, uint32_t sz) {
     }
     #undef cmd
 
-    printf("%p %08X: type:%x size:%2x subc:%d mthd:%x %s\n", ptr-1, dat, type, size, subc, mthd, mthd_name);
+    printf("%p %08X: type:%x size:%2x subc:%d mthd:%x %35s  ", ptr-1, dat, type, size, subc, mthd, mthd_name);
 
     // dump data
+    if (size > 4) printf("\n");
     for (int j = 0; j < size; j++) {
       if (j%4 == 0 && j != 0) printf("\n");
       //if (j%4 == 0) printf("%4x: ", j*4);

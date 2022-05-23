@@ -97,7 +97,7 @@ int main(int argc, char *argv[]) {
   void *ret = mmap((void*)0x200400000, 0x203600000-0x200400000, PROT_READ | PROT_WRITE, MAP_FIXED | MAP_SHARED | MAP_ANON, -1, 0);
   assert(ret == (void*)0x200400000);
 #endif
-  memset((void*)0x200400000, 0, 0x203600000-0x200400000);
+  //memset((void*)0x200400000, 0, 0x203600000-0x200400000);
   mprotect((void*)0x204600000, 0x204800000-0x204600000, PROT_READ);
 
   munmap((void*)0x204800000, 0x204a00000-0x204800000);    // /dev/nvidiactl
