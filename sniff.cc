@@ -132,8 +132,8 @@ int ioctl(int filedes, unsigned long request, void *argp) {
       } break;
       case NV_ESC_RM_MAP_MEMORY: {
         NVOS33_PARAMETERS *p = (NVOS33_PARAMETERS *)argp;
-        printf("NV_ESC_RM_MAP_MEMORY hDevice: %x hMemory: %x pLinearAddress: %p offset: %llx length %llx\n",
-          p->hDevice, p->hMemory, p->pLinearAddress, p->offset, p->length);
+        printf("NV_ESC_RM_MAP_MEMORY hClient: %x hDevice: %x hMemory: %x pLinearAddress: %p offset: %llx length %llx status %x flags %x\n",
+          p->hClient, p->hDevice, p->hMemory, p->pLinearAddress, p->offset, p->length, p->status, p->flags);
       } break;
       case NV_ESC_RM_UPDATE_DEVICE_MAPPING_INFO: printf("NV_ESC_RM_UPDATE_DEVICE_MAPPING_INFO\n"); break;
       case NV_ESC_RM_VID_HEAP_CONTROL: {

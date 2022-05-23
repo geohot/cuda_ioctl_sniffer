@@ -3,7 +3,13 @@
 #include "nouveau.h"
 #include "shadow.h"
 
+#include "kernel-open/common/inc/nv-ioctl-numbers.h"
+#include "src/nvidia/arch/nvalloc/unix/include/nv_escape.h"
+#include "src/common/sdk/nvidia/inc/nvos.h"
+
 #include <thread>
+#include <sys/ioctl.h>
+#include <fcntl.h>
 #include <cuda.h>
 #include <unistd.h>
 #include <sys/mman.h>
@@ -16,6 +22,8 @@ int main(int argc, char *argv[]) {
   cuInit(0);
   cuDeviceGet(&pdev, 0);
   cuCtxCreate(&pctx, 0, pdev);
+  /*hexdump(pctx, 0x1000);
+  exit(0);*/
   clear_gpu_ctrl();
   printf("**************** INIT DONE ****************\n");
 
@@ -36,38 +44,43 @@ int main(int argc, char *argv[]) {
 
   // *** my driver starts here
 
-  uint64_t cmdq = 0x20065409c;
+  uint64_t cmdq = 0x200600000;
   struct nouveau_pushbuf push_local = {
     .cur = (uint32_t*)cmdq
   };
   struct nouveau_pushbuf *push = &push_local;
 
-  /*BEGIN_NVC0(push, 1, NVC6C0_OFFSET_OUT_UPPER, 2);
-  PUSH_DATAh(push, (uint64_t)d_x);
-  PUSH_DATAl(push, (uint64_t)d_x);
+  BEGIN_NVC0(push, 1, NVC6C0_OFFSET_OUT_UPPER, 2);
+  PUSH_DATAh(push, 0x7FFFD6700004);
+  PUSH_DATAl(push, 0x7FFFD6700004);
   BEGIN_NVC0(push, 1, NVC6C0_LINE_LENGTH_IN, 2);
   PUSH_DATA(push, 8);
   PUSH_DATA(push, 1);
   BEGIN_NVC0(push, 1, NVC6C0_LAUNCH_DMA, 1);
   PUSH_DATA(push, 0x41);
-  BEGIN_NVC0(push, 1, NVC6C0_LOAD_INLINE_DATA, 2);
+  BEGIN_NIC0(push, 1, NVC6C0_LOAD_INLINE_DATA, 2);
   PUSH_DATA(push, 0xaabb);
   PUSH_DATA(push, 0xccdd);
-  BEGIN_NVC0(push, 1, NVC6C0_SET_REPORT_SEMAPHORE_A, 4);
-  PUSH_DATAh(push, 0x20460FFF0);
-  PUSH_DATAl(push, 0x20460FFF0);
-  PUSH_DATA(push, 0x7F);
-  PUSH_DATA(push, 0x0);*/
 
-  BEGIN_NVC0(push, 4, NVC6B5_OFFSET_IN_UPPER, 4);
+  /*BEGIN_NVC0(push, 4, NVC6B5_OFFSET_IN_UPPER, 4);
   PUSH_DATAh(push, (uint64_t)d_x);
   PUSH_DATAl(push, (uint64_t)d_x);
   PUSH_DATAh(push, 0x7FFFD6700004);
   PUSH_DATAl(push, 0x7FFFD6700004);
   BEGIN_NVC0(push, 4, NVC6B5_LINE_LENGTH_IN, 1);
-  PUSH_DATA(push, 0x20);
+  PUSH_DATA(push, 8);
   BEGIN_NVC0(push, 4, NVC6B5_LAUNCH_DMA, 1);
   PUSH_DATA(push, 0x00000182);
+
+  BEGIN_NVC0(push, 4, NVC6B5_OFFSET_IN_UPPER, 4);
+  PUSH_DATAh(push, 0x7FFFD6700004);
+  PUSH_DATAl(push, 0x7FFFD6700004);
+  PUSH_DATAh(push, 0x7FFFD6700010);
+  PUSH_DATAl(push, 0x7FFFD6700010);
+  BEGIN_NVC0(push, 4, NVC6B5_LINE_LENGTH_IN, 1);
+  PUSH_DATA(push, 0x10);
+  BEGIN_NVC0(push, 4, NVC6B5_LAUNCH_DMA, 1);
+  PUSH_DATA(push, 0x00000182);*/
 
   uint64_t sz = (uint64_t)push->cur - cmdq;
   *((uint64_t*)0x2004003f0) = cmdq | (sz << 40) | 0x20000000000;
@@ -78,10 +91,39 @@ int main(int argc, char *argv[]) {
   *((uint64_t*)0x200402088) = 0x7f;*/
   *((uint64_t*)0x20040208c) = 0x7f;
 
+  // 200400000-200600000 rw-s 00000000 00:05 630                              /dev/nvidia0                                 
+
+  //munmap((void*)0x7ffff7fb9000, 0x10000);
+  volatile uint32_t *regs = (volatile uint32_t*)0x7ffff7fb9000;
+
+  /*int fdctl = open("/dev/nvidiactl", O_CLOEXEC|O_RDWR);
+  int fd = open("/dev/nvidia0", O_CLOEXEC|O_RDWR);
+  printf("fd: %d fdctl: %d\n", fd, fdctl);
+
+  NVOS33_PARAMETERS params = {0};
+  params.hClient = 0xc1d00da6;
+  params.hDevice = 0x5c000002;
+  params.hMemory = 0x5c000003;
+  params.pLinearAddress = (void *)0xfbbb0000;
+  params.length = 0x10000;
+  params.flags = 2;
+  int ioret = ioctl(fdctl, NV_ESC_RM_MAP_MEMORY, &params);
+  printf("ioctl errno:%d ret:%d\n", errno, ioret);
+  while(1) sleep(1);
+  assert(ioret == 0);*/
+
+  // 0xfb000000
+  // 0xfbbb0000
+  //   3 0x 38 NV_ESC_RM_MAP_MEMORY hDevice: 5c000002 hMemory: 5c000003 pLinearAddress: 0xfbbb0000 offset: 0 length 10000
+  /*volatile uint32_t *regs = (volatile uint32_t*)mmap(NULL, 0x10000, PROT_WRITE, MAP_SHARED, fd, 0);
+  printf("mmap %d %p\n", errno, regs);
+  assert(regs != MAP_FAILED);*/
+
   // kick
-  printf("val %x\n", *((volatile uint32_t*)0x7ffff7fb9090));
-  *((volatile uint32_t*)0x7ffff7fb9090) = 0xD;
-  usleep(50*1000);
+  // mmap(NULL, 65536, PROT_WRITE, MAP_SHARED, 8, 0) = 0x7ffff7fb9000          
+  regs[0x90/4] = 0xd;
+  usleep(200*1000);
+
 
   //hexdump((uint8_t*)0x7ffff7fb9090, 0x10);
   //dump_proc_self_maps();
@@ -122,7 +164,7 @@ int main(int argc, char *argv[]) {
   dump_command_buffer(0x2004003f0);
 
   printf("pc\n");
-  hexdump((void*)0x7FFFD6700000, 0x10);
+  hexdump((void*)0x7FFFD6700000, 0x20);
   exit(0);
 
   //hexdump((uint8_t*)0x7ffff7fb9000, 0x100);
