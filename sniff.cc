@@ -137,7 +137,7 @@ int ioctl(int filedes, unsigned long request, void *argp) {
   uint16_t size = (request >> 16) & 0xFFF;
 
   if (type == NV_IOCTL_MAGIC) {
-    printf("%3d(%s) 0x%3x ", filedes, files[filedes].c_str(), size);
+    printf("%3d(%20s) 0x%3x ", filedes, files[filedes].c_str(), size);
     switch (nr) {
       // main ones
       case NV_ESC_CARD_INFO: printf("NV_ESC_CARD_INFO\n"); break;
@@ -147,7 +147,11 @@ int ioctl(int filedes, unsigned long request, void *argp) {
       case NV_ESC_CHECK_VERSION_STR: printf("NV_ESC_CHECK_VERSION_STR\n"); break;
       // numa ones
       case NV_ESC_NUMA_INFO: printf("NV_ESC_NUMA_INFO\n"); break;
-      case NV_ESC_RM_MAP_MEMORY_DMA: printf("NV_ESC_RM_MAP_MEMORY_DMA\n"); break;
+      case NV_ESC_RM_MAP_MEMORY_DMA: {
+        NVOS46_PARAMETERS *p = (NVOS46_PARAMETERS *)argp;
+        printf("NV_ESC_RM_MAP_MEMORY_DMA hClient: %x hDevice: %x hDma: %x hMemory: %x offset: %llx length %llx status %x flags %x\n",
+          p->hClient, p->hDevice, p->hDma, p->hMemory, p->offset, p->length, p->status, p->flags);
+      } break;
       case NV_ESC_RM_UNMAP_MEMORY_DMA: printf("NV_ESC_RM_UNMAP_MEMORY_DMA\n"); break;
       case NV_ESC_RM_UNMAP_MEMORY: printf("NV_ESC_RM_UNMAP_MEMORY\n"); break;
       case NV_ESC_RM_DUP_OBJECT: printf("NV_ESC_RM_DUP_OBJECT\n"); break;
