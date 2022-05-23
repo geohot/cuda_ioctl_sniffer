@@ -70,7 +70,7 @@ int main(int argc, char *argv[]) {
   BEGIN_NVC0(push, 4, NVC6B5_LINE_LENGTH_IN, 1);
   PUSH_DATA(push, 8);
   BEGIN_NVC0(push, 4, NVC6B5_LAUNCH_DMA, 1);
-  PUSH_DATA(push, 0x00000182);
+  PUSH_DATA(push, 0x00000182);*/
 
   BEGIN_NVC0(push, 4, NVC6B5_OFFSET_IN_UPPER, 4);
   PUSH_DATAh(push, 0x7FFFD6700004);
@@ -80,7 +80,7 @@ int main(int argc, char *argv[]) {
   BEGIN_NVC0(push, 4, NVC6B5_LINE_LENGTH_IN, 1);
   PUSH_DATA(push, 0x10);
   BEGIN_NVC0(push, 4, NVC6B5_LAUNCH_DMA, 1);
-  PUSH_DATA(push, 0x00000182);*/
+  PUSH_DATA(push, 0x00000182);
 
   uint64_t sz = (uint64_t)push->cur - cmdq;
   *((uint64_t*)0x2004003f0) = cmdq | (sz << 40) | 0x20000000000;

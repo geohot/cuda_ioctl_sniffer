@@ -2,6 +2,10 @@
 #include <cstring>
 #include <stdint.h>
 #include <dlfcn.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#include <pthread.h>
+#include "helpers.h"
 
 #define NV_LINUX
 #include "kernel-open/common/inc/nv-ioctl-numbers.h"
@@ -30,6 +34,41 @@
 #include "src/common/sdk/nvidia/inc/ctrl/ctrla06c.h"
 
 extern "C" {
+
+volatile uint32_t *magic_addr = NULL;
+
+void *cq_sniffer(void *in) {
+  /*while (1) {
+    if (magic_addr != NULL) {
+      printf("MAGIC: %lx\n", magic_addr[0x8c/4]);
+    }
+    //printf("here\n");
+
+    //usleep(50*1000);
+  }*/
+  return NULL;
+}
+
+__attribute__((constructor)) void foo(void) {
+  printf("the sniffer is sniffing\n");
+  pthread_t threadId;
+  int err = pthread_create(&threadId, NULL, &cq_sniffer, NULL);
+}
+
+void *(*my_mmap64)(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
+#undef mmap64
+void *mmap64(void *addr, size_t length, int prot, int flags, int fd, off_t offset) {
+  if (my_mmap64 == NULL) my_mmap64 = reinterpret_cast<decltype(my_mmap64)>(dlsym(RTLD_NEXT, "mmap"));
+  void *ret = my_mmap64(addr, length, prot, flags, fd, offset);
+
+  if (flags == 1 && length == 0x10000 && magic_addr == NULL) {
+    magic_addr = (uint32_t*)ret;
+  }
+
+  printf("mmapped(64) %p (target %p) with flags 0x%x length %zx\n", ret, addr, flags, length);
+  return ret;
+}
+
 
 void *(*my_mmap)(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
 #undef mmap

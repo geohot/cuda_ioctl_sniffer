@@ -71,8 +71,15 @@ void dump_command_buffer_start_sz(uint32_t *sp, uint32_t sz) {
         // ** Queue Meta Data, Version 03_00
         // 0x80 = ptr to 0x160 dma + args
         mthd_name = "NVC6C0_LOAD_INLINE_QMD_DATA(0)";
+        uint32_t x = DRF_VAL_MW(C6C0_QMDV03_00_CTA_RASTER_WIDTH,,,ptr);
+        uint32_t y = DRF_VAL_MW(C6C0_QMDV03_00_CTA_RASTER_HEIGHT,,,ptr);
+        uint32_t z = DRF_VAL_MW(C6C0_QMDV03_00_CTA_RASTER_DEPTH,,,ptr);
+        uint32_t tx = DRF_VAL_MW(C6C0_QMDV03_00_CTA_THREAD_DIMENSION0,,,ptr);
+        uint32_t ty = DRF_VAL_MW(C6C0_QMDV03_00_CTA_THREAD_DIMENSION1,,,ptr);
+        uint32_t tz = DRF_VAL_MW(C6C0_QMDV03_00_CTA_THREAD_DIMENSION2,,,ptr);
         uint64_t pa = (uint64_t)DRF_VAL_MW(C6C0_QMDV03_00_PROGRAM_ADDRESS_UPPER,,,ptr)<<32 | DRF_VAL_MW(C6C0_QMDV03_00_PROGRAM_ADDRESS_LOWER,,,ptr);
         printf("PROGRAM_ADDRESS %lX\n", pa);
+        printf("<<< %d,%d,%d -- %d,%d,%d >>>\n",x,y,z,tx,ty,tz);
         for (int j = 0; j < 8; j++) {
           uint64_t cb = (uint64_t)DRF_VAL_MW(C6C0_QMDV03_00_CONSTANT_BUFFER_ADDR_UPPER(j),,,ptr)<<32 | DRF_VAL_MW(C6C0_QMDV03_00_CONSTANT_BUFFER_ADDR_LOWER(j),,,ptr);
           uint32_t cb_size = DRF_VAL_MW(C6C0_QMDV03_00_CONSTANT_BUFFER_SIZE_SHIFTED4(j),,,ptr);

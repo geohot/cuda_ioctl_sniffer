@@ -116,14 +116,14 @@ int main(int argc, char *argv[]) {
   printf("***** launch\n");
   cuLaunchKernel(saxpy_f, (N+255)/256, 1, 1, 256, 1, 1, 0, 0, args, NULL);
   cuStreamSynchronize(0);
-  dump_gpu_ctrl();
+  //dump_gpu_ctrl();
+  //dump_command_buffer(0x200400418);
 
   // 65453c
   // 35602
   /**((uint64_t*)0x200400418) = 0x65453c;
   *((uint64_t*)0x20040041C) = 0x35602;*/
 
-  dump_command_buffer(0x200400418);
 
   //uint32_t *ep = (uint32_t *)(*((uint64_t*)0x200402040) & 0xFFFFFFFFFF);
   //printf("dumping %p -> %p\n", sp, ep);
