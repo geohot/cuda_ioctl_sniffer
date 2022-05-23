@@ -35,6 +35,9 @@
 #include "src/common/sdk/nvidia/inc/ctrl/ctrlc36f.h"
 #include "src/common/sdk/nvidia/inc/ctrl/ctrla06c.h"
 
+#include <map>
+std::map<int, std::string> files;
+
 extern "C" {
 
 volatile uint32_t *queues = (uint32_t *)0x200400000;
@@ -48,7 +51,7 @@ static void handler(int sig, siginfo_t *si, void *unused) {
   ucontext_t *u = (ucontext_t *)unused;
   uint64_t rdx = u->uc_mcontext.gregs[REG_RDX];
   uint64_t addr = (uint64_t)si->si_addr-(uint64_t)fake+(uint64_t)realfake;
-  printf("HOOK 0x%lx = %x\n", addr, rdx);
+  printf("HOOK 0x%lx = %lx\n", addr, rdx);
   uint32_t *base = (uint32_t*)(0x200400000 + ((rdx&0xFFFF)-0xd)*0x3000);
   printf("base %p range %d-%d\n", base, base[0x2088/4], base[0x208c/4]);
 
@@ -83,6 +86,17 @@ __attribute__((constructor)) void foo(void) {
   sigemptyset(&sa.sa_mask);
   sa.sa_sigaction = handler;
   sigaction(SIGSEGV, &sa, NULL);
+}
+
+
+int (*my_open64)(const char *pathname, int flags, mode_t mode);
+#undef open
+int open64(const char *pathname, int flags, mode_t mode) {
+  if (my_open64 == NULL) my_open64 = reinterpret_cast<decltype(my_open64)>(dlsym(RTLD_NEXT, "open64"));
+  int ret = my_open64(pathname, flags, mode);
+  printf("open %s = %d\n", pathname, ret);
+  files[ret] = pathname;
+  return ret;
 }
 
 void *(*my_mmap64)(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
@@ -123,7 +137,7 @@ int ioctl(int filedes, unsigned long request, void *argp) {
   uint16_t size = (request >> 16) & 0xFFF;
 
   if (type == NV_IOCTL_MAGIC) {
-    printf("%3d 0x%3x ", filedes, size);
+    printf("%3d(%s) 0x%3x ", filedes, files[filedes].c_str(), size);
     switch (nr) {
       // main ones
       case NV_ESC_CARD_INFO: printf("NV_ESC_CARD_INFO\n"); break;
@@ -133,6 +147,10 @@ int ioctl(int filedes, unsigned long request, void *argp) {
       case NV_ESC_CHECK_VERSION_STR: printf("NV_ESC_CHECK_VERSION_STR\n"); break;
       // numa ones
       case NV_ESC_NUMA_INFO: printf("NV_ESC_NUMA_INFO\n"); break;
+      case NV_ESC_RM_MAP_MEMORY_DMA: printf("NV_ESC_RM_MAP_MEMORY_DMA\n"); break;
+      case NV_ESC_RM_UNMAP_MEMORY_DMA: printf("NV_ESC_RM_UNMAP_MEMORY_DMA\n"); break;
+      case NV_ESC_RM_UNMAP_MEMORY: printf("NV_ESC_RM_UNMAP_MEMORY\n"); break;
+      case NV_ESC_RM_DUP_OBJECT: printf("NV_ESC_RM_DUP_OBJECT\n"); break;
       // escape ones
       case NV_ESC_RM_ALLOC_MEMORY: {
         // note, it's nv_ioctl_nvos02_parameters_with_fd
@@ -229,7 +247,7 @@ int ioctl(int filedes, unsigned long request, void *argp) {
         }
       } break;
       default:
-        printf("%lx\n", request);
+        printf("UNKNOWN %lx\n", request);
         break;
     }
   }

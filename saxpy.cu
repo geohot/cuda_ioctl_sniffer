@@ -13,6 +13,7 @@
 
 extern "C" {
 extern const unsigned long long fatbinData[351];
+//extern const unsigned long long fatbinData[372];
 }
 
 __global__
