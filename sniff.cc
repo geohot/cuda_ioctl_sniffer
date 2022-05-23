@@ -5,6 +5,8 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <signal.h>
+#include <ucontext.h>
 #include "helpers.h"
 
 #define NV_LINUX
@@ -35,24 +37,40 @@
 
 extern "C" {
 
-volatile uint32_t *magic_addr = NULL;
+volatile uint32_t *queues = (uint32_t *)0x200400000;
+uint32_t shadow_queues[(0x200600000-0x200400000)/4];
 
-void *cq_sniffer(void *in) {
-  /*while (1) {
-    if (magic_addr != NULL) {
-      printf("MAGIC: %lx\n", magic_addr[0x8c/4]);
+volatile uint32_t *real = NULL;
+uint32_t *realfake = NULL;
+uint32_t *fake = NULL;
+
+static void handler(int sig, siginfo_t *si, void *unused) {
+  ucontext_t *u = (ucontext_t *)unused;
+  uint64_t rdx = u->uc_mcontext.gregs[REG_RDX];
+  uint64_t addr = (uint64_t)si->si_addr-(uint64_t)fake+(uint64_t)realfake;
+  printf("HOOK 0x%lx = %x\n", addr, rdx);
+
+  for (int i = 0; i < 0x200000/4; i++) {
+    if (queues[i] != shadow_queues[i]) {
+      printf("%p = %x\n", &queues[i], queues[i]);
+      shadow_queues[i] = queues[i];
     }
-    //printf("here\n");
+  }
+  real[0x90/4] = rdx;
 
-    //usleep(50*1000);
-  }*/
-  return NULL;
+  u->uc_mcontext.gregs[REG_RAX] = addr;
 }
 
 __attribute__((constructor)) void foo(void) {
   printf("the sniffer is sniffing\n");
-  pthread_t threadId;
-  int err = pthread_create(&threadId, NULL, &cq_sniffer, NULL);
+
+  for (int i = 0; i < 0x200000/4; i++) shadow_queues[i] = 0;
+
+  struct sigaction sa;
+  sa.sa_flags = SA_SIGINFO;
+  sigemptyset(&sa.sa_mask);
+  sa.sa_sigaction = handler;
+  sigaction(SIGSEGV, &sa, NULL);
 }
 
 void *(*my_mmap64)(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
@@ -61,8 +79,10 @@ void *mmap64(void *addr, size_t length, int prot, int flags, int fd, off_t offse
   if (my_mmap64 == NULL) my_mmap64 = reinterpret_cast<decltype(my_mmap64)>(dlsym(RTLD_NEXT, "mmap"));
   void *ret = my_mmap64(addr, length, prot, flags, fd, offset);
 
-  if (flags == 1 && length == 0x10000 && magic_addr == NULL) {
-    magic_addr = (uint32_t*)ret;
+  if (flags == 0x1 && length == 0x10000 && !real) {
+    real = (uint32_t *)ret;
+    realfake = (uint32_t *)mmap(NULL, length, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANON, -1, 0);
+    ret = fake = (uint32_t *)mmap(NULL, length, PROT_NONE, MAP_SHARED | MAP_ANON, -1, 0);
   }
 
   printf("mmapped(64) %p (target %p) with flags 0x%x length %zx\n", ret, addr, flags, length);
@@ -111,6 +131,7 @@ int ioctl(int filedes, unsigned long request, void *argp) {
       case NV_ESC_RM_CONTROL: {
         const char *cmd_string = "";
         NVOS54_PARAMETERS *p = (NVOS54_PARAMETERS *)argp;
+        #define cmd(name) case name: cmd_string = #name; break
         switch (p->cmd) {
           case NV0000_CTRL_CMD_SYSTEM_GET_BUILD_VERSION: cmd_string = "NV0000_CTRL_CMD_SYSTEM_GET_BUILD_VERSION"; break;
           case NV0000_CTRL_CMD_SYSTEM_GET_FABRIC_STATUS: cmd_string = "NV0000_CTRL_CMD_SYSTEM_GET_FABRIC_STATUS"; break;
@@ -138,6 +159,7 @@ int ioctl(int filedes, unsigned long request, void *argp) {
           case NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS: cmd_string = "NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS"; break;
           case NV2080_CTRL_CMD_GPU_GET_ENGINES: cmd_string = "NV2080_CTRL_CMD_GPU_GET_ENGINES"; break;
           case NV2080_CTRL_CMD_GPU_QUERY_COMPUTE_MODE_RULES: cmd_string = "NV2080_CTRL_CMD_GPU_QUERY_COMPUTE_MODE_RULES"; break;
+          cmd(NV2080_CTRL_CMD_MC_SERVICE_INTERRUPTS);
           case NV2080_CTRL_CMD_RC_GET_WATCHDOG_INFO: cmd_string = "NV2080_CTRL_CMD_RC_GET_WATCHDOG_INFO"; break;
           case NV2080_CTRL_CMD_RC_RELEASE_WATCHDOG_REQUESTS: cmd_string = "NV2080_CTRL_CMD_RC_RELEASE_WATCHDOG_REQUESTS"; break;
           case NV2080_CTRL_CMD_RC_SOFT_DISABLE_WATCHDOG: cmd_string = "NV2080_CTRL_CMD_RC_SOFT_DISABLE_WATCHDOG"; break;
@@ -163,6 +185,7 @@ int ioctl(int filedes, unsigned long request, void *argp) {
           case NVA06C_CTRL_CMD_SET_TIMESLICE: cmd_string = "NVA06C_CTRL_CMD_SET_TIMESLICE"; break;
           case NV83DE_CTRL_CMD_DEBUG_SET_EXCEPTION_MASK: cmd_string = "NV83DE_CTRL_CMD_DEBUG_SET_EXCEPTION_MASK"; break;
         }
+        #undef cmd
         printf("NV_ESC_RM_CONTROL client: %x object: %x cmd: %8x %s flags: %x\n", p->hClient, p->hObject, p->cmd, cmd_string, p->flags);
       } break;
       case NV_ESC_RM_ALLOC: {

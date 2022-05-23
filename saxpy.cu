@@ -116,6 +116,7 @@ int main(int argc, char *argv[]) {
   printf("***** launch\n");
   cuLaunchKernel(saxpy_f, (N+255)/256, 1, 1, 256, 1, 1, 0, 0, args, NULL);
   cuStreamSynchronize(0);
+  //sleep(1);
   //dump_gpu_ctrl();
   //dump_command_buffer(0x200400418);
 
