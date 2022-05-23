@@ -40,13 +40,20 @@ uint32_t *fake = NULL;
 
 static void handler(int sig, siginfo_t *si, void *unused) {
   ucontext_t *u = (ucontext_t *)unused;
+  uint8_t *rip = (uint8_t*)u->uc_mcontext.gregs[REG_RIP];
+  //hexdump(rip, 0x10);
 
   // it's rcx on some CUDA drivers
-  uint64_t rdx = u->uc_mcontext.gregs[REG_RCX];
-  int start = 0x30;
+  uint64_t rdx;
+  int start;
 
-  //uint64_t rdx = u->uc_mcontext.gregs[REG_RDX];
-  //int start = 0xd;
+  if (rip[0] == 0x89 && rip[1] == 0x10) {
+    rdx = u->uc_mcontext.gregs[REG_RDX];
+    start = 0xd;
+  } else {
+    rdx = u->uc_mcontext.gregs[REG_RCX];
+    start = 0x30;
+  }
 
   uint64_t addr = (uint64_t)si->si_addr-(uint64_t)fake+(uint64_t)realfake;
   if ((addr & 0xFF) == 0x90) {
