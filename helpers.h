@@ -86,20 +86,17 @@ void dump_command_buffer_start_sz(uint32_t *sp, uint32_t sz) {
           if (cb != 0) printf("CONSTANT_BUFFER(%d) %lX sz:%x\n", j, cb, cb_size);
         }
       } break;
-      case NVC6C0_SET_REPORT_SEMAPHORE_A: mthd_name = "NVC6C0_SET_REPORT_SEMAPHORE_A"; break;
+      cmd(NVC6C0_SET_REPORT_SEMAPHORE_A);
+      cmd(NVC6C0_SET_REPORT_SEMAPHORE_B);
+      cmd(NVC6C0_SET_REPORT_SEMAPHORE_C);
+      cmd(NVC6C0_SET_REPORT_SEMAPHORE_D);
       // AMPERE_DMA_COPY_A
-      case NVC6B5_OFFSET_IN_UPPER:
-        mthd_name = "NVC6B5_OFFSET_IN_UPPER";
-        break;
-      case NVC6B5_LINE_LENGTH_IN:
-        mthd_name = "NVC6B5_LINE_LENGTH_IN";
-        break;
-      case NVC6B5_LAUNCH_DMA:
-        mthd_name = "NVC6B5_LAUNCH_DMA";
-        break;
-      case NVC6B5_SET_SEMAPHORE_A:
-        mthd_name = "NVC6B5_SET_SEMAPHORE_A";
-        break;
+      cmd(NVC6B5_OFFSET_IN_UPPER);
+      cmd(NVC6B5_LINE_LENGTH_IN);
+      cmd(NVC6B5_LAUNCH_DMA);
+      cmd(NVC6B5_SET_SEMAPHORE_A);
+      cmd(NVC6B5_PITCH_IN);
+      cmd(NVC6B5_PITCH_OUT);
       // others
       cmd(NVC6C0_SET_OBJECT);
       cmd(NVC6C0_NO_OPERATION);
