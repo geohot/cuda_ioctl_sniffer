@@ -6,14 +6,10 @@
 #include <sys/mman.h>
 #include "helpers.h"
 
-
-
 //#define BROKEN
 //#define DUMP_MAPS
-
 extern "C" {
-extern const unsigned long long fatbinData[351];
-//extern const unsigned long long fatbinData[372];
+extern const unsigned long long fatbinData[372];
 }
 
 __global__
@@ -41,6 +37,7 @@ int main(int argc, char *argv[]) {
 
   printf("***** get function\n");
   CUmodule mod = 0;
+
   cuModuleLoadFatBinary(&mod, fatbinData);
   /*dump_gpu_ctrl();
   //dump_command_buffer(0x200400000);
@@ -164,5 +161,5 @@ int main(int argc, char *argv[]) {
   cudaFree(d_y);
   free(x);
   free(y);
-
 }
+

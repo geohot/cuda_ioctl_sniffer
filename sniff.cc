@@ -40,29 +40,26 @@ uint32_t *fake = NULL;
 
 static void handler(int sig, siginfo_t *si, void *unused) {
   ucontext_t *u = (ucontext_t *)unused;
-  uint64_t rdx = u->uc_mcontext.gregs[REG_RDX];
+
+  // it's rcx on some CUDA drivers
+  uint64_t rdx = u->uc_mcontext.gregs[REG_RCX];
+  int start = 0x30;
+
+  //uint64_t rdx = u->uc_mcontext.gregs[REG_RDX];
+  //int start = 0xd;
+
   uint64_t addr = (uint64_t)si->si_addr-(uint64_t)fake+(uint64_t)realfake;
-  printf("HOOK 0x%lx = %lx\n", addr, rdx);
-  uint32_t *base = (uint32_t*)(0x200400000 + ((rdx&0xFFFF)-0xd)*0x3000);
-  printf("base %p range %d-%d\n", base, base[0x2088/4], base[0x208c/4]);
+  if ((addr & 0xFF) == 0x90) {
+    printf("HOOK 0x%lx = %lx\n", addr, rdx);
+    uint32_t *base = (uint32_t*)(0x200400000 + ((rdx&0xFFFF)-start)*0x3000);
+    printf("base %p range %d-%d\n", base, base[0x2088/4], base[0x208c/4]);
 
-  // 0x200400000 = 0xd
-  // 0x200403000 = 0xe
-  // 0x200406000 = 0xf
-  // 0x200409000 = 0x10
-
-  /*for (int i = 0; i < 0x200000/4; i++) {
-    if (queues[i] != shadow_queues[i]) {
-      printf("%p = %x\n", &queues[i], queues[i]);
-      shadow_queues[i] = queues[i];
+    for (int q = base[0x2088/4]; q < base[0x208c/4]; q++) {
+      uint64_t qq = ((uint64_t)base[q*2+1]<<32) | base[q*2];
+      dump_command_buffer((uint64_t)&base[q*2]);
     }
-  }*/
-
-  for (int q = base[0x2088/4]; q < base[0x208c/4]; q++) {
-    uint64_t qq = ((uint64_t)base[q*2+1]<<32) | base[q*2];
-    dump_command_buffer((uint64_t)&base[q*2]);
+    real[0x90/4] = rdx;
   }
-  real[0x90/4] = rdx;
 
   u->uc_mcontext.gregs[REG_RAX] = addr;
 }
@@ -97,6 +94,7 @@ void *mmap64(void *addr, size_t length, int prot, int flags, int fd, off_t offse
   void *ret = my_mmap64(addr, length, prot, flags, fd, offset);
 
   if (flags == 0x1 && length == 0x10000 && !real) {
+    printf("YOU SUNK MY BATTLESHIP\n");
     real = (uint32_t *)ret;
     realfake = (uint32_t *)mmap(NULL, length, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANON, -1, 0);
     ret = fake = (uint32_t *)mmap(NULL, length, PROT_NONE, MAP_SHARED | MAP_ANON, -1, 0);
