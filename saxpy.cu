@@ -157,6 +157,12 @@ int main(int argc, char *argv[]) {
   printf("Max error: %f\n", maxError);
   if (maxError > 0.01) { printf("FAILLLLLLLLED\n"); exit(-1); }
 
+  /*printf("***** dump progrem\n");
+  char tmp[0x100] = {0};
+  int ret = cuMemcpy((CUdeviceptr)tmp, (CUdeviceptr)0x7FFFE6FB7900, 0x100);
+  printf("copy %d\n", ret);
+  hexdump(tmp, 0x100);*/
+
   printf("***** exit free\n");
   cudaFree(d_x);
   cudaFree(d_y);
