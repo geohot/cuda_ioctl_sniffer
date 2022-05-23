@@ -97,7 +97,7 @@ void *mmap64(void *addr, size_t length, int prot, int flags, int fd, off_t offse
     ret = fake = (uint32_t *)mmap(NULL, length, PROT_NONE, MAP_SHARED | MAP_ANON, -1, 0);
   }
 
-  printf("mmapped(64) %p (target %p) with flags 0x%x length %zx fd %d\n", ret, addr, flags, length, fd);
+  if (fd != -1) printf("mmapped(64) %p (target %p) with flags 0x%x length %zx fd %d\n", ret, addr, flags, length, fd);
   return ret;
 }
 
@@ -108,7 +108,7 @@ void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
   if (my_mmap == NULL) my_mmap = reinterpret_cast<decltype(my_mmap)>(dlsym(RTLD_NEXT, "mmap"));
   void *ret = my_mmap(addr, length, prot, flags, fd, offset);
 
-  printf("mmapped %p (target %p) with flags 0x%x length %zx fd %d\n", ret, addr, flags, length, fd);
+  if (fd != -1) printf("mmapped %p (target %p) with flags 0x%x length %zx fd %d\n", ret, addr, flags, length, fd);
   return ret;
 }
 
