@@ -42,7 +42,7 @@ int main(int argc, char *argv[]) {
   };
   struct nouveau_pushbuf *push = &push_local;
 
-  BEGIN_NVC0(push, 1, NVC6C0_OFFSET_OUT_UPPER, 2);
+  /*BEGIN_NVC0(push, 1, NVC6C0_OFFSET_OUT_UPPER, 2);
   PUSH_DATAh(push, (uint64_t)d_x);
   PUSH_DATAl(push, (uint64_t)d_x);
   BEGIN_NVC0(push, 1, NVC6C0_LINE_LENGTH_IN, 2);
@@ -57,20 +57,30 @@ int main(int argc, char *argv[]) {
   PUSH_DATAh(push, 0x20460FFF0);
   PUSH_DATAl(push, 0x20460FFF0);
   PUSH_DATA(push, 0x7F);
-  PUSH_DATA(push, 0x0);
+  PUSH_DATA(push, 0x0);*/
+
+  BEGIN_NVC0(push, 4, NVC6B5_OFFSET_IN_UPPER, 4);
+  PUSH_DATAh(push, (uint64_t)d_x);
+  PUSH_DATAl(push, (uint64_t)d_x);
+  PUSH_DATAh(push, 0x7FFFD6700004);
+  PUSH_DATAl(push, 0x7FFFD6700004);
+  BEGIN_NVC0(push, 4, NVC6B5_LINE_LENGTH_IN, 1);
+  PUSH_DATA(push, 0x20);
+  BEGIN_NVC0(push, 4, NVC6B5_LAUNCH_DMA, 1);
+  PUSH_DATA(push, 0x00000182);
+
   uint64_t sz = (uint64_t)push->cur - cmdq;
   *((uint64_t*)0x2004003f0) = cmdq | (sz << 40) | 0x20000000000;
-  *((uint64_t*)0x200402040) = 0x6540dc;
+  /**((uint64_t*)0x200402040) = 0x6540dc;
   *((uint64_t*)0x200402044) = 0x6540dc;
   *((uint64_t*)0x20040204c) = 2;
   *((uint64_t*)0x200402060) = 2;
-  *((uint64_t*)0x200402088) = 0x7f;
+  *((uint64_t*)0x200402088) = 0x7f;*/
   *((uint64_t*)0x20040208c) = 0x7f;
 
   // kick
   printf("val %x\n", *((volatile uint32_t*)0x7ffff7fb9090));
   *((volatile uint32_t*)0x7ffff7fb9090) = 0xD;
-  //*((volatile uint32_t*)0x7ffff7fb9090) = 0x20019;
   usleep(50*1000);
 
   //hexdump((uint8_t*)0x7ffff7fb9090, 0x10);
@@ -111,6 +121,10 @@ int main(int argc, char *argv[]) {
   dump_command_buffer(0x2004003e8);
   dump_command_buffer(0x2004003f0);
 
+  printf("pc\n");
+  hexdump((void*)0x7FFFD6700000, 0x10);
+  exit(0);
+
   //hexdump((uint8_t*)0x7ffff7fb9000, 0x100);
 
   //shadow::diff(maps_i0);
@@ -123,6 +137,7 @@ int main(int argc, char *argv[]) {
 
 
   //clear_gpu_ctrl();
+  memset(junk_out, 0x33, 8);
   cuMemcpy((CUdeviceptr)junk_out, (CUdeviceptr)d_x, 0x100);
   //dump_gpu_ctrl();
   dump_command_buffer(0x200424008);
