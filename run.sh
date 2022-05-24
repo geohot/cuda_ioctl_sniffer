@@ -1,7 +1,7 @@
 #!/bin/bash -e
 ./make_sniff.sh
 cd out
-nvcc -I../open-gpu-kernel-modules/src/common/sdk/nvidia/inc -I../open-gpu-kernel-modules --keep -g ../saxpy.cu -o saxpy -lcuda -v
+nvcc -I ../open-gpu-kernel-modules/src/common/sdk/nvidia/inc -I ../open-gpu-kernel-modules --keep -g ../saxpy.cu -o saxpy -lcuda -v
 cd ../
 
 LD_PRELOAD=out/sniff.so out/saxpy
