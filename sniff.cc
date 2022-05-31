@@ -31,12 +31,9 @@ std::map<int, std::string> files;
 
 extern "C" {
 
-volatile uint32_t *queues = (uint32_t *)0x200400000;
-uint32_t shadow_queues[(0x200600000-0x200400000)/4];
-
-volatile uint32_t *real = NULL;
-uint32_t *realfake = NULL;
-uint32_t *fake = NULL;
+volatile uint32_t *real = NULL;    // this is the actual mapping of the MMIO page
+uint32_t *realfake = NULL;         // this is where we actually redirect the write to (TODO: can we just put real in here)
+uint32_t *fake = NULL;             // this is an empty page that will cause a trap
 
 static void handler(int sig, siginfo_t *si, void *unused) {
   ucontext_t *u = (ucontext_t *)unused;
@@ -47,6 +44,8 @@ static void handler(int sig, siginfo_t *si, void *unused) {
   uint64_t rdx;
   int start;
 
+  // TODO: where does start come from
+  // rdx is the offset into the command buffer GPU mapping
   if (rip[0] == 0x89 && rip[1] == 0x10) {
     rdx = u->uc_mcontext.gregs[REG_RDX];
     start = 0xd;
@@ -65,6 +64,8 @@ static void handler(int sig, siginfo_t *si, void *unused) {
       uint64_t qq = ((uint64_t)base[q*2+1]<<32) | base[q*2];
       dump_command_buffer((uint64_t)&base[q*2]);
     }
+
+    // kick off the GPU command queue
     real[0x90/4] = rdx;
   }
 
@@ -73,8 +74,6 @@ static void handler(int sig, siginfo_t *si, void *unused) {
 
 __attribute__((constructor)) void foo(void) {
   printf("the sniffer is sniffing\n");
-
-  for (int i = 0; i < 0x200000/4; i++) shadow_queues[i] = 0;
 
   struct sigaction sa;
   sa.sa_flags = SA_SIGINFO;
