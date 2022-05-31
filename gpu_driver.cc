@@ -1,7 +1,7 @@
 // TODO: write userspace GPU driver
 #include "helpers.h"
 #include "nouveau.h"
-#include "shadow.h"
+//#include "shadow.h"
 
 #include "kernel-open/common/inc/nv-ioctl-numbers.h"
 #include "src/nvidia/arch/nvalloc/unix/include/nv_escape.h"
@@ -13,6 +13,39 @@
 #include <cuda.h>
 #include <unistd.h>
 #include <sys/mman.h>
+
+//void gpu_memset(int subc, void *)
+
+void gpu_memcpy(struct nouveau_pushbuf *push, uint64_t dst, uint64_t src, int len) {
+  BEGIN_NVC0(push, 4, NVC6B5_OFFSET_IN_UPPER, 4);
+  PUSH_DATAh(push, src);
+  PUSH_DATAl(push, src);
+  PUSH_DATAh(push, dst);
+  PUSH_DATAl(push, dst);
+  BEGIN_NVC0(push, 4, NVC6B5_LINE_LENGTH_IN, 1);
+  PUSH_DATA(push, len);
+  BEGIN_NVC0(push, 4, NVC6B5_LAUNCH_DMA, 1);
+  PUSH_DATA(push, 0x00000182);
+}
+
+void gpu_memset(struct nouveau_pushbuf *push, uint64_t dst, const uint32_t *dat, int len) {
+  assert(len%4 == 0);
+
+  BEGIN_NVC0(push, 1, NVC6C0_OFFSET_OUT_UPPER, 2);
+  PUSH_DATAh(push, dst);
+  PUSH_DATAl(push, dst);
+  BEGIN_NVC0(push, 1, NVC6C0_LINE_LENGTH_IN, 2);
+  PUSH_DATA(push, len);
+  PUSH_DATA(push, 1);
+  BEGIN_NVC0(push, 1, NVC6C0_LAUNCH_DMA, 1);
+  PUSH_DATA(push, 0x41);
+
+  int words = len/4;
+  BEGIN_NIC0(push, 1, NVC6C0_LOAD_INLINE_DATA, words);
+  for (int i = 0; i < words; i++) {
+    PUSH_DATA(push, dat[i]);
+  }
+}
 
 int main(int argc, char *argv[]) {
   // our GPU driver doesn't support init. use CUDA
@@ -50,17 +83,7 @@ int main(int argc, char *argv[]) {
   };
   struct nouveau_pushbuf *push = &push_local;
 
-  BEGIN_NVC0(push, 1, NVC6C0_OFFSET_OUT_UPPER, 2);
-  PUSH_DATAh(push, 0x7FFFD6700004);
-  PUSH_DATAl(push, 0x7FFFD6700004);
-  BEGIN_NVC0(push, 1, NVC6C0_LINE_LENGTH_IN, 2);
-  PUSH_DATA(push, 8);
-  PUSH_DATA(push, 1);
-  BEGIN_NVC0(push, 1, NVC6C0_LAUNCH_DMA, 1);
-  PUSH_DATA(push, 0x41);
-  BEGIN_NIC0(push, 1, NVC6C0_LOAD_INLINE_DATA, 2);
-  PUSH_DATA(push, 0xaabb);
-  PUSH_DATA(push, 0xccdd);
+  gpu_memset(push, 0x7FFFD6700004, (const uint32_t *)"\xbb\xaa\x00\x00\xdd\xcc\x00\x00", 8);
 
   /*BEGIN_NVC0(push, 4, NVC6B5_OFFSET_IN_UPPER, 4);
   PUSH_DATAh(push, (uint64_t)d_x);
@@ -72,15 +95,8 @@ int main(int argc, char *argv[]) {
   BEGIN_NVC0(push, 4, NVC6B5_LAUNCH_DMA, 1);
   PUSH_DATA(push, 0x00000182);*/
 
-  BEGIN_NVC0(push, 4, NVC6B5_OFFSET_IN_UPPER, 4);
-  PUSH_DATAh(push, 0x7FFFD6700004);
-  PUSH_DATAl(push, 0x7FFFD6700004);
-  PUSH_DATAh(push, 0x7FFFD6700010);
-  PUSH_DATAl(push, 0x7FFFD6700010);
-  BEGIN_NVC0(push, 4, NVC6B5_LINE_LENGTH_IN, 1);
-  PUSH_DATA(push, 0x10);
-  BEGIN_NVC0(push, 4, NVC6B5_LAUNCH_DMA, 1);
-  PUSH_DATA(push, 0x00000182);
+  //gpu_memcpy(0x7FFFD6700010, 0x7FFFD6700004)
+  gpu_memcpy(push, 0x7FFFD6700010, 0x7FFFD6700004, 0x10);
 
   uint64_t sz = (uint64_t)push->cur - cmdq;
   *((uint64_t*)0x2004003f0) = cmdq | (sz << 40) | 0x20000000000;

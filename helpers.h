@@ -122,7 +122,7 @@ void dump_command_buffer_start_sz(uint32_t *sp, uint32_t sz) {
     }
     #undef cmd
 
-    printf("%p %08X: type:%x size:%2x subc:%d mthd:%x %35s  ", ptr-1, dat, type, size, subc, mthd, mthd_name);
+    printf("%p %08X: type:%x size:%2x subc:%d mthd:%4x %35s  ", ptr-1, dat, type, size, subc, mthd, mthd_name);
 
     // dump data
     if (size > 4) printf("\n");
