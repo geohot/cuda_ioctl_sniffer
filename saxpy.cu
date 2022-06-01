@@ -9,7 +9,7 @@
 //#define BROKEN
 //#define DUMP_MAPS
 extern "C" {
-extern const unsigned long long fatbinData[351];
+extern const unsigned long long fatbinData[427];
 //extern const unsigned long long fatbinData[372];
 }
 
