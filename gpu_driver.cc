@@ -54,6 +54,29 @@ void gpu_memset(struct nouveau_pushbuf *push, uint64_t dst, const uint32_t *dat,
   }
 }
 
+void gpu_compute(struct nouveau_pushbuf *push, uint64_t qmd) {
+  BEGIN_NVC0(push, 1, NVC6C0_SET_INLINE_QMD_ADDRESS_A, 2);
+  PUSH_DATAh(push, qmd);
+  PUSH_DATAl(push, qmd);
+
+  uint32_t dat[0x40];
+  memset(dat, 0, sizeof(dat));
+  FLD_ASSIGN_MW(NVC6C0_QMDV03_00_QMD_GROUP_ID, 0x3F, dat);
+  FLD_ASSIGN_MW(NVC6C0_QMDV03_00_SM_GLOBAL_CACHING_ENABLE, 1, dat);
+
+  FLD_ASSIGN_MW(NVC6C0_QMDV03_00_CTA_RASTER_WIDTH, 4096, dat);
+  FLD_ASSIGN_MW(NVC6C0_QMDV03_00_CTA_RASTER_HEIGHT, 1, dat);
+  FLD_ASSIGN_MW(NVC6C0_QMDV03_00_CTA_RASTER_DEPTH, 1, dat);
+  FLD_ASSIGN_MW(NVC6C0_QMDV03_00_CTA_THREAD_DIMENSION0, 256, dat);
+  FLD_ASSIGN_MW(NVC6C0_QMDV03_00_CTA_THREAD_DIMENSION1, 1, dat);
+  FLD_ASSIGN_MW(NVC6C0_QMDV03_00_CTA_THREAD_DIMENSION2, 1, dat);
+
+  BEGIN_NVC0(push, 1, NVC6C0_LOAD_INLINE_QMD_DATA(0), 0x40);
+  for (int i = 0; i < 0x40; i++) {
+    PUSH_DATA(push, dat[i]);
+  }
+}
+
 int main(int argc, char *argv[]) {
   // our GPU driver doesn't support init. use CUDA
   // TODO: remove linking to CUDA
@@ -93,6 +116,7 @@ int main(int argc, char *argv[]) {
 
   gpu_memset(push, 0x7FFFD6700004, (const uint32_t *)"\xbb\xaa\x00\x00\xdd\xcc\x00\x00", 8);
   gpu_memcpy(push, 0x7FFFD6700010, 0x7FFFD6700004, 0x10);
+  gpu_compute(push, 0x204E020);
 
   uint64_t sz = (uint64_t)push->cur - cmdq;
   *((uint64_t*)0x2004003f0) = cmdq | (sz << 40) | 0x20000000000;

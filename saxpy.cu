@@ -112,7 +112,7 @@ int main(int argc, char *argv[]) {
   //while (1) sleep(1);
 
   // calls into /lib/x86_64-linux-gnu/libcuda.so.515.43.04
-  printf("***** launch\n");
+  printf("***** launch program\n");
   cuLaunchKernel(saxpy_f, (N+255)/256, 1, 1, 256, 1, 1, 0, 0, args, NULL);
   cuStreamSynchronize(0);
   //sleep(1);
