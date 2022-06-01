@@ -60,6 +60,16 @@ void gpu_memset(struct nouveau_pushbuf *push, uint64_t dst, const uint32_t *dat,
 
 /*
 // trivial program
+        .headerflags    @"EF_CUDA_SM52 EF_CUDA_PTX_SM(EF_CUDA_SM52)"                                                                                                                          
+                                                              0x001fbc00fde007f6                                                                                                              
+          0008                     MOV R1, c[0x0][0x20] ;     0x4c98078000870001                                                                                                              
+          0010                     NOP ;                      0x50b0000000070f00                                                                                                              
+          0018                     NOP ;                      0x50b0000000070f00                                                                                                              
+                                                              0x001ffc00ffe007ed                                                                                                              
+          0028                     NOP ;                      0x50b0000000070f00                                                                                                              
+          0030                     EXIT ;                     0xe30000000007000f                                                                                                              
+          0038                     BRA 0x38 ;                 0xe2400fffff87000f 
+// cuobjdump out/saxpy.fatbin -sass
    0: 00017A02 00000A00 00000F00 000FC400                                                                                                                                                     
  128: 0000794D 00000000 03800000 000FEA00                                                                                                                                                     
  256: 00007947 FFFFFFF0 0383FFFF 000FC000                                                                                                                                                     
@@ -80,6 +90,41 @@ void gpu_memset(struct nouveau_pushbuf *push, uint64_t dst, const uint32_t *dat,
 
 /*
 // saxpy program
+        .headerflags    @"EF_CUDA_SM52 EF_CUDA_PTX_SM(EF_CUDA_SM52)"
+                                                                                    0x001cfc00e22007f6   
+          0008                     MOV R1, c[0x0][0x20] ;                           0x4c98078000870001   
+          0010                     S2R R0, SR_CTAID.X ;                             0xf0c8000002570000   
+          0018                     S2R R2, SR_TID.X ;                               0xf0c8000002170002   
+                                                                                    0x001fd842fec20ff1   
+          0028                     XMAD.MRG R3, R0.reuse, c[0x0] [0x8].H1, RZ ;     0x4f107f8000270003   
+          0030                     XMAD R2, R0.reuse, c[0x0] [0x8], R2 ;            0x4e00010000270002   
+          0038                     XMAD.PSL.CBCC R0, R0.H1, R3.H1, R2 ;             0x5b30011800370000   
+                                                                                    0x001ff400fd4007ed   
+          0048                     ISETP.GE.AND P0, PT, R0, c[0x0][0x140], PT ;     0x4b6d038005070007   
+          0050                     NOP ;                                            0x50b0000000070f00   
+          0058                 @P0 EXIT ;                                           0xe30000000000000f   
+                                                                                    0x081fd800fea207f1   
+          0068                     SHL R2, R0.reuse, 0x2 ;                          0x3848000000270002   
+          0070                     SHR R0, R0, 0x1e ;                               0x3829000001e70000   
+          0078                     IADD R4.CC, R2.reuse, c[0x0][0x148] ;            0x4c10800005270204   
+                                                                                    0x001fd800fe0207f2   
+          0088                     IADD.X R5, R0.reuse, c[0x0][0x14c] ;             0x4c10080005370005   
+          0090           {         IADD R2.CC, R2, c[0x0][0x150] ;                  0x4c10800005470202   
+          0098                     LDG.E R4, [R4]         }
+                                                                                    0xeed4200000070404   
+                                                                                    0x041fc800f6a007e2   
+          00a8                     IADD.X R3, R0, c[0x0][0x154] ;                   0x4c10080005570003   
+          00b0                     LDG.E R6, [R2] ;                                 0xeed4200000070206   
+          00b8                     FFMA R0, R4, c[0x0][0x144], R6 ;                 0x4980030005170400   
+                                                                                    0x001f9000fde007f1   
+          00c8                     STG.E [R2], R0 ;                                 0xeedc200000070200   
+          00d0                     NOP ;                                            0x50b0000000070f00   
+          00d8                     NOP ;                                            0x50b0000000070f00   
+                                                                                    0x001f8000ffe007ff   
+          00e8                     EXIT ;                                           0xe30000000007000f   
+          00f0                     BRA 0xf0 ;                                       0xe2400fffff87000f   
+          00f8                     NOP;                                             0x50b0000000070f00 
+// cuobjdump out/saxpy.fatbin -sass
    0: 00017A02 00000A00 00000F00 000FC400                                                                                                                                                     
  128: 00047919 00000000 00002500 000E2800                                                                                                                                                     
  256: 00037919 00000000 00002100 000E2400                                                                                                                                                     
