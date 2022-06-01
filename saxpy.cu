@@ -139,6 +139,15 @@ int main(int argc, char *argv[]) {
   //cuStreamSynchronize(0);
   //dump_gpu_ctrl();
 
+  // doesn't work
+  /*printf("***** dump program\n");
+  hexdump((void*)fatbinData, sizeof(fatbinData));*/
+  /*uint8_t tmp[0x80];
+  memset(tmp, 0, 0x80);
+  int ret = cuMemcpy((CUdeviceptr)tmp, 0x7FFFE6FB7900, 0x400);
+  printf("dump %d\n", ret);
+  hexdump(tmp, 0x80);*/
+
   printf("***** exit memcpy %p -> %p\n", d_y, y);
   //memset((void*)0x200400000, 0, 0x203600000-0x200400000);
   cudaMemcpy(y, d_y, N*sizeof(float), cudaMemcpyDeviceToHost);

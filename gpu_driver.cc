@@ -54,6 +54,58 @@ void gpu_memset(struct nouveau_pushbuf *push, uint64_t dst, const uint32_t *dat,
   }
 }
 
+// this is a dump of the program
+// it appears it's even lower level than sass
+// i quote "binary microcode"
+
+/*
+// trivial program
+   0: 00017A02 00000A00 00000F00 000FC400                                                                                                                                                     
+ 128: 0000794D 00000000 03800000 000FEA00                                                                                                                                                     
+ 256: 00007947 FFFFFFF0 0383FFFF 000FC000                                                                                                                                                     
+ 384: 00007918 00000000 00000000 000FC000                                                                                                                                                     
+ 512: 00007918 00000000 00000000 000FC000 
+ 640: 00007918 00000000 00000000 000FC000 
+ 768: 00007918 00000000 00000000 000FC000                                                                                                                                                     
+ 896: 00007918 00000000 00000000 000FC000                                                                                                                                                     
+1024: 00007918 00000000 00000000 000FC000                                                                                                                                                     
+1152: 00007918 00000000 00000000 000FC000                                                                                                                                                     
+1280: 00007918 00000000 00000000 000FC000                                                                                                                                                     
+1408: 00007918 00000000 00000000 000FC000 
+1536: 00007918 00000000 00000000 000FC000 
+1664: 00007918 00000000 00000000 000FC000                                                                                                                                                     
+1792: 00007918 00000000 00000000 000FC000                                                                                                                                                     
+1920: 00007918 00000000 00000000 000FC000                                                                                                                                                     
+*/
+
+/*
+// saxpy program
+   0: 00017A02 00000A00 00000F00 000FC400                                                                                                                                                     
+ 128: 00047919 00000000 00002500 000E2800                                                                                                                                                     
+ 256: 00037919 00000000 00002100 000E2400                                                                                                                                                     
+ 384: 04047A24 00000000 078E0203 001FCA00                                                                                                                                                     
+ 512: 04007A0C 00005800 03F06270 000FDA00                                                                                                                                                     
+ 640: 0000094D 00000000 03800000 000FEA00                                                                                                                                                     
+ 768: 00057802 00000004 00000F00 000FE200                                                                                                                                                     
+ 896: 00047AB9 00004600 00000A00 000FC800                                                      
+1024: 04027625 00005A00 078E0205 000FC800                                                      
+1152: 04047625 00005C00 078E0205 000FE400                                                                                                                                                     
+1280: 02027981 00000004 0C1E1900 000EA800                                                                                                                                                     
+1408: 04077981 00000004 0C1E1900 000EA400                                                                                                                                                     
+1536: 02077A23 00005900 00000007 004FCA00                                                                                                                                                     
+1664: 04007986 00000007 0C101904 000FE200                                                                                                                                                     
+1792: 0000794D 00000000 03800000 000FEA00                                                      
+1920: 00007947 FFFFFFF0 0383FFFF 000FC000                                                      
+2048: 00007918 00000000 00000000 000FC000                                                      
+2176: 00007918 00000000 00000000 000FC000                                                      
+2304: 00007918 00000000 00000000 000FC000                                                      
+2432: 00007918 00000000 00000000 000FC000                                                      
+2560: 00007918 00000000 00000000 000FC000                                                      
+2688: 00007918 00000000 00000000 000FC000 
+2816: 00007918 00000000 00000000 000FC000 
+2944: 00007918 00000000 00000000 000FC000 
+*/
+
 void gpu_compute(struct nouveau_pushbuf *push, uint64_t qmd) {
   BEGIN_NVC0(push, 1, NVC6C0_SET_INLINE_QMD_ADDRESS_A, 2);
   PUSH_DATAh(push, qmd);
@@ -67,6 +119,23 @@ void gpu_compute(struct nouveau_pushbuf *push, uint64_t qmd) {
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_INVALIDATE_TEXTURE_SAMPLER_CACHE,,, 1, dat);
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_INVALIDATE_TEXTURE_DATA_CACHE,,, 1, dat);
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_INVALIDATE_SHADER_DATA_CACHE,,, 1, dat);
+
+  FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_CWD_MEMBAR_TYPE,,, 1, dat);
+  FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_API_VISIBLE_CALL_LIMIT,,, 1, dat);
+  FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_SAMPLER_INDEX,,, 1, dat);
+  FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_SHARED_MEMORY_SIZE,,, 0x400, dat);
+  FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_MIN_SM_CONFIG_SHARED_MEM_SIZE,,, 3, dat);
+  FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_MAX_SM_CONFIG_SHARED_MEM_SIZE,,, 0x1A, dat);
+  FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_QMD_MAJOR_VERSION,,, 3, dat);
+  FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_REGISTER_COUNT_V,,, 0x10, dat);
+  FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_TARGET_SM_CONFIG_SHARED_MEM_SIZE,,, 3, dat);
+  FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_BARRIER_COUNT,,, 1, dat);
+  FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_RELEASE0_ENABLE,,, 1, dat);
+  FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_RELEASE0_STRUCTURE_SIZE,,, 1, dat);
+  FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_RELEASE0_PAYLOAD_LOWER,,, 6, dat);
+  FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_SHADER_LOCAL_MEMORY_HIGH_SIZE,,, 0x640, dat);
+  FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_PROGRAM_PREFETCH_SIZE,,, 0xa, dat);
+  FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_SASS_VERSION,,, 0x86, dat);
 
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_CTA_RASTER_WIDTH,,, 4096, dat);
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_CTA_RASTER_HEIGHT,,, 1, dat);
