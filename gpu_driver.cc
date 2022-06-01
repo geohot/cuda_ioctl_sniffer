@@ -16,18 +16,23 @@
 
 //void gpu_memset(int subc, void *)
 
+// NVC6B5 = AMPERE_DMA_COPY_A
 void gpu_memcpy(struct nouveau_pushbuf *push, uint64_t dst, uint64_t src, int len) {
   BEGIN_NVC0(push, 4, NVC6B5_OFFSET_IN_UPPER, 4);
   PUSH_DATAh(push, src);
   PUSH_DATAl(push, src);
-  PUSH_DATAh(push, dst);
+  PUSH_DATAh(push, dst);  // NVC6B5_OFFSET_OUT_UPPER
   PUSH_DATAl(push, dst);
   BEGIN_NVC0(push, 4, NVC6B5_LINE_LENGTH_IN, 1);
   PUSH_DATA(push, len);
   BEGIN_NVC0(push, 4, NVC6B5_LAUNCH_DMA, 1);
+  // 0x100 = NVC6B5_LAUNCH_DMA_DST_MEMORY_LAYOUT_PITCH
+  // 0x 80 = NVC6B5_LAUNCH_DMA_SRC_MEMORY_LAYOUT_PITCH
+  // 0x  2 = NVC6B5_LAUNCH_DMA_DATA_TRANSFER_TYPE_NON_PIPELINED
   PUSH_DATA(push, 0x00000182);
 }
 
+// NVC6C0 = AMPERE_COMPUTE_A
 void gpu_memset(struct nouveau_pushbuf *push, uint64_t dst, const uint32_t *dat, int len) {
   assert(len%4 == 0);
 
@@ -36,8 +41,10 @@ void gpu_memset(struct nouveau_pushbuf *push, uint64_t dst, const uint32_t *dat,
   PUSH_DATAl(push, dst);
   BEGIN_NVC0(push, 1, NVC6C0_LINE_LENGTH_IN, 2);
   PUSH_DATA(push, len);
-  PUSH_DATA(push, 1);
+  PUSH_DATA(push, 1);    // NVC6C0_LINE_COUNT
   BEGIN_NVC0(push, 1, NVC6C0_LAUNCH_DMA, 1);
+  // 0x 40 = NVC6C0_LAUNCH_DMA_SYSMEMBAR_DISABLE_TRUE
+  // 0x  1 = NVC6C0_LAUNCH_DMA_DST_MEMORY_LAYOUT_PITCH
   PUSH_DATA(push, 0x41);
 
   int words = len/4;
