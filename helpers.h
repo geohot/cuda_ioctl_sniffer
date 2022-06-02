@@ -9,6 +9,7 @@ void clear_gpu_ctrl() {
 void hexdump(void *d, int l) {
   for (int i = 0; i < l; i++) {
     if (i%0x10 == 0 && i != 0) printf("\n");
+    if (i%0x10 == 0) printf("%8X: ", i);
     printf("%2.2X ", ((uint8_t*)d)[i]);
   }
   printf("\n");

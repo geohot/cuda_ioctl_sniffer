@@ -114,7 +114,9 @@ void gpu_memset(struct nouveau_pushbuf *push, uint64_t dst, const uint32_t *dat,
 2944: 00007918 00000000 00000000 000FC000 
 */
 
-void gpu_compute(struct nouveau_pushbuf *push, uint64_t qmd) {
+#include "out/saxpy.fatbin.c"
+
+void gpu_compute(struct nouveau_pushbuf *push, uint64_t qmd, uint64_t program_address) {
   BEGIN_NVC0(push, 1, NVC6C0_SET_INLINE_QMD_ADDRESS_A, 2);
   PUSH_DATAh(push, qmd);
   PUSH_DATAl(push, qmd);
@@ -151,6 +153,12 @@ void gpu_compute(struct nouveau_pushbuf *push, uint64_t qmd) {
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_CTA_THREAD_DIMENSION0,,, 256, dat);
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_CTA_THREAD_DIMENSION1,,, 1, dat);
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_CTA_THREAD_DIMENSION2,,, 1, dat);
+
+  FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_PROGRAM_ADDRESS_LOWER,,, program_address, dat);
+  FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_PROGRAM_ADDRESS_UPPER,,, program_address>>32, dat);
+
+  FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_PROGRAM_PREFETCH_ADDR_LOWER_SHIFTED,,, program_address>>8, dat);
+  FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_PROGRAM_PREFETCH_ADDR_UPPER_SHIFTED,,, program_address>>40, dat);
 
   BEGIN_NVC0(push, 1, NVC6C0_LOAD_INLINE_QMD_DATA(0), 0x40);
   for (int i = 0; i < 0x40; i++) {
@@ -196,8 +204,15 @@ int main(int argc, char *argv[]) {
   struct nouveau_pushbuf *push = &push_local;
 
   gpu_memset(push, 0x7FFFD6700004, (const uint32_t *)"\xbb\xaa\x00\x00\xdd\xcc\x00\x00", 8);
+
+  //printf("fat\n");
+  //hexdump((void*)&fatbinData[0x6D0/8], 0x1000);
+
+  gpu_memset(push, 0x7FFFD6701000, (const uint32_t *)&fatbinData[0x6D0/8], 0x180);
+  gpu_compute(push, 0x204E020, 0x7FFFD6701000);
+
+  // this isn't happening if you do compute
   gpu_memcpy(push, 0x7FFFD6700010, 0x7FFFD6700004, 0x10);
-  gpu_compute(push, 0x204E020);
 
   uint64_t sz = (uint64_t)push->cur - cmdq;
   *((uint64_t*)0x2004003f0) = cmdq | (sz << 40) | 0x20000000000;
@@ -216,4 +231,5 @@ int main(int argc, char *argv[]) {
 
   printf("pc\n");
   hexdump((void*)0x7FFFD6700000, 0x20);
+
 }
