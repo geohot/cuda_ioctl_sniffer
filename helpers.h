@@ -267,8 +267,8 @@ void dump_command_buffer_start_sz(uint32_t *sp, uint32_t sz) {
     if (size > 4) printf("\n");
     for (int j = 0; j < size; j++) {
       if (j%4 == 0 && j != 0) printf("\n");
-      //if (j%4 == 0) printf("%4x: ", j*4);
-      if (j%4 == 0) printf("%4d: ", j*4*8);
+      if (j%4 == 0) printf("%4x: ", j*4);
+      //if (j%4 == 0) printf("%4d: ", j*4*8);
       /*for (int k = 0; k < 4; k++) {
         printf("%02X ", ((uint8_t*)ptr)[k]);
       }

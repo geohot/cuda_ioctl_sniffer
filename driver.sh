@@ -2,7 +2,7 @@
 mkdir -p out
 ./make_sniff.sh
 
-ptxas simple.ptx --gpu-name sm_86 -o out/simple.o
+ptxas simple.ptx --gpu-name sm_86 -o out/simple.o # -O1 -v
 cuobjdump out/simple.o -sass
 
 clang++ gpu_driver.cc -I/usr/local/cuda/include -o out/gpu_driver -Iopen-gpu-kernel-modules -Iopen-gpu-kernel-modules/src/common/sdk/nvidia/inc -lcuda -lpthread
