@@ -54,8 +54,20 @@ void gpu_memset(struct nouveau_pushbuf *push, uint64_t dst, const uint32_t *dat,
   }
 }
 
+const uint32_t trivial[] = {
+  0x00017A02,0x00000A00,0x00000F00,0x000FC400,
+  0x0000794D,0x00000000,0x03800000,0x000FEA00,
+  0x00007947,0xFFFFFFF0,0x0383FFFF,0x000FC000,
+  0x00007918,0x00000000,0x00000000,0x000FC000,
+};
+
 /*
 // trivial program
+          0000                     MOV R1, c[0x0][0x28] ;                           0x00000a0000017a02   0x000fc40000000f00   
+          00e0                     EXIT ;                                           0x000000000000794d   0x000fea0003800000   
+          00f0                     BRA 0xf0;                                        0xfffffff000007947   0x000fc0000383ffff   
+          0100                     NOP;                                             0x0000000000007918   0x000fc00000000000   
+
    0: 00017A02 00000A00 00000F00 000FC400                                                                                                                                                    
  128: 0000794D 00000000 03800000 000FEA00                                                                                                                                                    
  256: 00007947 FFFFFFF0 0383FFFF 000FC000                                                                                                                                                    
@@ -116,7 +128,7 @@ void gpu_memset(struct nouveau_pushbuf *push, uint64_t dst, const uint32_t *dat,
 
 #include "out/saxpy.fatbin.c"
 
-void gpu_compute(struct nouveau_pushbuf *push, uint64_t qmd, uint64_t program_address) {
+void gpu_compute(struct nouveau_pushbuf *push, uint64_t qmd, uint64_t release_address, uint64_t program_address, uint64_t constant_address, int constant_length) {
   BEGIN_NVC0(push, 1, NVC6C0_SET_INLINE_QMD_ADDRESS_A, 2);
   PUSH_DATAh(push, qmd);
   PUSH_DATAl(push, qmd);
@@ -140,9 +152,6 @@ void gpu_compute(struct nouveau_pushbuf *push, uint64_t qmd, uint64_t program_ad
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_REGISTER_COUNT_V,,, 0x10, dat);
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_TARGET_SM_CONFIG_SHARED_MEM_SIZE,,, 3, dat);
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_BARRIER_COUNT,,, 1, dat);
-  FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_RELEASE0_ENABLE,,, 1, dat);
-  FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_RELEASE0_STRUCTURE_SIZE,,, 1, dat);
-  FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_RELEASE0_PAYLOAD_LOWER,,, 6, dat);
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_SHADER_LOCAL_MEMORY_HIGH_SIZE,,, 0x640, dat);
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_PROGRAM_PREFETCH_SIZE,,, 0xa, dat);
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_SASS_VERSION,,, 0x86, dat);
@@ -154,11 +163,22 @@ void gpu_compute(struct nouveau_pushbuf *push, uint64_t qmd, uint64_t program_ad
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_CTA_THREAD_DIMENSION1,,, 1, dat);
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_CTA_THREAD_DIMENSION2,,, 1, dat);
 
+  FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_RELEASE0_ADDRESS_LOWER,,, release_address, dat);
+  FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_RELEASE0_ADDRESS_UPPER,,, release_address>>32, dat);
+  FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_RELEASE0_ENABLE,,, 1, dat);
+  FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_RELEASE0_STRUCTURE_SIZE,,, 1, dat);
+  FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_RELEASE0_PAYLOAD_LOWER,,, 6, dat);
+
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_PROGRAM_ADDRESS_LOWER,,, program_address, dat);
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_PROGRAM_ADDRESS_UPPER,,, program_address>>32, dat);
 
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_PROGRAM_PREFETCH_ADDR_LOWER_SHIFTED,,, program_address>>8, dat);
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_PROGRAM_PREFETCH_ADDR_UPPER_SHIFTED,,, program_address>>40, dat);
+
+  FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_CONSTANT_BUFFER_ADDR_UPPER(0),,, constant_address>>32, dat);
+  FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_CONSTANT_BUFFER_ADDR_LOWER(0),,, constant_address, dat);
+  FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_CONSTANT_BUFFER_SIZE_SHIFTED4(0),,, constant_length, dat);
+  FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_CONSTANT_BUFFER_INVALIDATE(0),,, 1, dat);
 
   BEGIN_NVC0(push, 1, NVC6C0_LOAD_INLINE_QMD_DATA(0), 0x40);
   for (int i = 0; i < 0x40; i++) {
@@ -174,7 +194,6 @@ int main(int argc, char *argv[]) {
   cuInit(0);
   cuDeviceGet(&pdev, 0);
   cuCtxCreate(&pctx, 0, pdev);
-
 
   clear_gpu_ctrl();
   printf("**************** INIT DONE ****************\n");
@@ -208,8 +227,9 @@ int main(int argc, char *argv[]) {
   //printf("fat\n");
   //hexdump((void*)&fatbinData[0x6D0/8], 0x1000);
 
-  gpu_memset(push, 0x7FFFD6701000, (const uint32_t *)&fatbinData[0x6D0/8], 0x180);
-  gpu_compute(push, 0x204E020, 0x7FFFD6701000);
+  //gpu_memset(push, 0x7FFFD6701000, (const uint32_t *)&fatbinData[0x6D0/8], 0x180);
+  gpu_memset(push, 0x7FFFD6701000, trivial, 0x40);
+  gpu_compute(push, 0x204E020, 0x205007fbc, 0x7FFFD6701000, 0x7FFFD6702000, 0x188);
 
   // this isn't happening if you do compute
   gpu_memcpy(push, 0x7FFFD6700010, 0x7FFFD6700004, 0x10);
@@ -225,11 +245,14 @@ int main(int argc, char *argv[]) {
   regs[0x90/4] = 0xd;
   usleep(200*1000);
 
+
   dump_gpu_ctrl();
   dump_command_buffer(0x2004003e8);
   dump_command_buffer(0x2004003f0);
 
   printf("pc\n");
   hexdump((void*)0x7FFFD6700000, 0x20);
+  printf("fat\n");
+  hexdump((void*)0x7FFFD6701000, 0x180);
 
 }

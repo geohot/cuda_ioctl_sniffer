@@ -220,7 +220,9 @@ void dump_command_buffer_start_sz(uint32_t *sp, uint32_t sz) {
         for (int j = 0; j < 8; j++) {
           uint64_t cb = (uint64_t)DRF_VAL_MW(C6C0_QMDV03_00_CONSTANT_BUFFER_ADDR_UPPER(j),,,ptr)<<32 | DRF_VAL_MW(C6C0_QMDV03_00_CONSTANT_BUFFER_ADDR_LOWER(j),,,ptr);
           uint32_t cb_size = DRF_VAL_MW(C6C0_QMDV03_00_CONSTANT_BUFFER_SIZE_SHIFTED4(j),,,ptr);
-          if (cb != 0) printf("CONSTANT_BUFFER(%d) %lX sz:%x\n", j, cb, cb_size);
+          uint32_t cb_prefetch = DRF_VAL_MW(C6C0_QMDV03_00_CONSTANT_BUFFER_PREFETCH_POST(j),,,ptr);
+          uint32_t cb_invalidate = DRF_VAL_MW(C6C0_QMDV03_00_CONSTANT_BUFFER_INVALIDATE(j),,,ptr);
+          if (cb != 0) printf("CONSTANT_BUFFER(%d) %lX sz:%x prefetch:%d invalidate:%d\n", j, cb, cb_size, cb_prefetch, cb_invalidate);
         }
       } break;
       cmd(NVC6C0_SET_REPORT_SEMAPHORE_A);
