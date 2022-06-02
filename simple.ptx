@@ -1,0 +1,20 @@
+.version 7.7
+.target sm_86
+.address_size 64
+
+.visible .entry write_float(
+	.param .u64 ptr,
+	.param .f32 value
+)
+{
+	.reg .f32 	%f<2>;
+	.reg .b64 	%rd<3>;
+
+	ld.param.u64 	%rd1, [ptr];
+	ld.param.f32 	%f1, [value];
+
+	cvta.to.global.u64 	%rd2, %rd1;
+	st.global.f32 	[%rd2], %f1;
+
+	ret;
+}

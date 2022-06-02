@@ -228,7 +228,24 @@ int main(int argc, char *argv[]) {
   //hexdump((void*)&fatbinData[0x6D0/8], 0x1000);
 
   //gpu_memset(push, 0x7FFFD6701000, (const uint32_t *)&fatbinData[0x6D0/8], 0x180);
-  gpu_memset(push, 0x7FFFD6701000, trivial, 0x40);
+
+  uint32_t program[0x40];
+  FILE *f = fopen("out/simple.o", "rb");
+  fseek(f, 0x600, SEEK_SET);
+  fread(program, 1, 0x100, f);
+  fclose(f);
+  gpu_memset(push, 0x7FFFD6701000, program, 0x100);
+  //gpu_memset(push, 0x7FFFD6701000, trivial, 0x40);
+
+  struct {
+    uint64_t addr;
+    float store;
+  } args;
+
+  args.addr = 0x7FFFD6700000;
+  args.store = 1.337;
+  gpu_memset(push, 0x7FFFD6702160, (const uint32_t*)&args, 0xc);
+
   gpu_compute(push, 0x204E020, 0x205007fbc, 0x7FFFD6701000, 0x7FFFD6702000, 0x188);
 
   // this isn't happening if you do compute
@@ -254,5 +271,7 @@ int main(int argc, char *argv[]) {
   hexdump((void*)0x7FFFD6700000, 0x20);
   printf("fat\n");
   hexdump((void*)0x7FFFD6701000, 0x180);
+  printf("constant\n");
+  hexdump((void*)0x7FFFD6702000, 0x200);
 
 }
