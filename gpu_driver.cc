@@ -156,6 +156,7 @@ void gpu_compute(struct nouveau_pushbuf *push, uint64_t qmd, uint64_t release_ad
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_PROGRAM_PREFETCH_SIZE,,, 0xa, dat);
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_SASS_VERSION,,, 0x86, dat);
 
+  // group
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_CTA_RASTER_WIDTH,,, 1, dat);
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_CTA_RASTER_HEIGHT,,, 1, dat);
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_CTA_RASTER_DEPTH,,, 1, dat);
@@ -163,18 +164,20 @@ void gpu_compute(struct nouveau_pushbuf *push, uint64_t qmd, uint64_t release_ad
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_CTA_THREAD_DIMENSION1,,, 1, dat);
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_CTA_THREAD_DIMENSION2,,, 1, dat);
 
-  FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_RELEASE0_ADDRESS_LOWER,,, release_address, dat);
+  // this isn't needed
+  /*FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_RELEASE0_ADDRESS_LOWER,,, release_address, dat);
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_RELEASE0_ADDRESS_UPPER,,, release_address>>32, dat);
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_RELEASE0_ENABLE,,, 1, dat);
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_RELEASE0_STRUCTURE_SIZE,,, 1, dat);
-  FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_RELEASE0_PAYLOAD_LOWER,,, 6, dat);
+  FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_RELEASE0_PAYLOAD_LOWER,,, 6, dat);*/
 
+  // program
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_PROGRAM_ADDRESS_LOWER,,, program_address, dat);
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_PROGRAM_ADDRESS_UPPER,,, program_address>>32, dat);
-
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_PROGRAM_PREFETCH_ADDR_LOWER_SHIFTED,,, program_address>>8, dat);
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_PROGRAM_PREFETCH_ADDR_UPPER_SHIFTED,,, program_address>>40, dat);
 
+  // args
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_CONSTANT_BUFFER_ADDR_UPPER(0),,, constant_address>>32, dat);
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_CONSTANT_BUFFER_ADDR_LOWER(0),,, constant_address, dat);
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_CONSTANT_BUFFER_SIZE_SHIFTED4(0),,, constant_length, dat);
@@ -249,7 +252,7 @@ int main(int argc, char *argv[]) {
   args.value1 = 0x1337-0x200;
   args.value2 = 0x1337-0x100;
   gpu_memset(push, 0x7FFFD6702160, (const uint32_t*)&args, 0x10);
-  gpu_memset(push, 0x7FFFD6702028, (const uint32_t *)"\xC0\xFD\xFF\x00", 4);
+  //gpu_memset(push, 0x7FFFD6702028, (const uint32_t *)"\xC0\xFD\xFF\x00", 4);
 
   gpu_compute(push, 0x204E020, 0x205007fbc, 0x7FFFD6701000, 0x7FFFD6702000, 0x188);
 
@@ -276,8 +279,8 @@ int main(int argc, char *argv[]) {
   hexdump((void*)0x7FFFD6700000, 0x20);
   printf("fat\n");
   hexdump((void*)0x7FFFD6701000, 0x180);
-  printf("constant\n");
-  hexdump((void*)0x7FFFD6702000, 0x200);
+  //printf("constant\n");
+  //hexdump((void*)0x7FFFD6702000, 0x200);
   //hexdump((void*)0x7FFFD6702160, 0x20);
 
   //dump_proc_self_maps();
