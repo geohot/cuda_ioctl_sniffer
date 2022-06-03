@@ -5,6 +5,7 @@
 #include <string>
 #include <iostream>
 #include <fstream>
+#include <cstring>
 #include <sys/mman.h>
 
 namespace shadow {
@@ -21,7 +22,7 @@ namespace shadow {
         }
 
         void save() {
-            if (! this->prot & PROT_READ) return;
+            if (!(this->prot & PROT_READ)) return;
             if (this->name == "[vsyscall]" || this->name == "[vvar]") return;
             if (this->addr >= 0x800000000000) return;
             if (this->size > 0x10000000000) return; // 1TB
