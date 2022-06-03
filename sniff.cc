@@ -10,6 +10,7 @@
 #include "helpers.h"
 
 #define NV_LINUX
+#include "kernel-open/common/inc/nv-ioctl.h"
 #include "kernel-open/common/inc/nv-ioctl-numbers.h"
 #define NV_ESC_NUMA_INFO         (NV_IOCTL_BASE + 15)
 #include "src/nvidia/arch/nvalloc/unix/include/nv_escape.h"
@@ -124,7 +125,7 @@ void *mmap64(void *addr, size_t length, int prot, int flags, int fd, off_t offse
     printf("YOU SUNK MY BATTLESHIP: real %p    realfake: %p    fake: %p\n", real, realfake, fake);
   }
 
-  if (fd != -1) printf("mmapped(64) %p (target %p) with flags 0x%x length %zx fd %d\n", ret, addr, flags, length, fd);
+  if (fd != -1) printf("mmapped(64) %p (target %p) with flags 0x%x length 0x%zx fd %d\n", ret, addr, flags, length, fd);
   return ret;
 }
 
@@ -135,7 +136,7 @@ void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
   if (my_mmap == NULL) my_mmap = reinterpret_cast<decltype(my_mmap)>(dlsym(RTLD_NEXT, "mmap"));
   void *ret = my_mmap(addr, length, prot, flags, fd, offset);
 
-  if (fd != -1) printf("mmapped %p (target %p) with flags 0x%x length %zx fd %d\n", ret, addr, flags, length, fd);
+  if (fd != -1) printf("mmapped %p (target %p) with flags 0x%x length 0x%zx fd %d\n", ret, addr, flags, length, fd);
   return ret;
 }
 
@@ -154,7 +155,10 @@ int ioctl(int filedes, unsigned long request, void *argp) {
     switch (nr) {
       // main ones
       case NV_ESC_CARD_INFO: printf("NV_ESC_CARD_INFO\n"); break;
-      case NV_ESC_REGISTER_FD: printf("NV_ESC_REGISTER_FD\n"); break;
+      case NV_ESC_REGISTER_FD: {
+        nv_ioctl_register_fd_t *params = (nv_ioctl_register_fd_t *)argp;
+        printf("NV_ESC_REGISTER_FD fd:%d\n", params->ctl_fd); break;
+      }
       case NV_ESC_ALLOC_OS_EVENT: printf("NV_ESC_ALLOC_OS_EVENT\n"); break;
       case NV_ESC_SYS_PARAMS: printf("NV_ESC_SYS_PARAMS\n"); break;
       case NV_ESC_CHECK_VERSION_STR: printf("NV_ESC_CHECK_VERSION_STR\n"); break;
@@ -250,7 +254,8 @@ int ioctl(int filedes, unsigned long request, void *argp) {
       } break;
       case NV_ESC_RM_ALLOC: {
         NVOS21_PARAMETERS *p = (NVOS21_PARAMETERS *)argp;
-        printf("NV_ESC_RM_ALLOC hRoot: %x hObjectParent: %x hObjectNew: %x\n", p->hRoot, p->hObjectParent, p->hObjectNew);
+        printf("NV_ESC_RM_ALLOC hRoot: %x hObjectParent: %x hObjectNew: %x hClass: %x pAllocParms: %p status: %x\n", p->hRoot, p->hObjectParent, p->hObjectNew,
+          p->hClass, p->pAllocParms, p->status);
       } break;
       case NV_ESC_RM_MAP_MEMORY: {
         NVOS33_PARAMETERS *p = (NVOS33_PARAMETERS *)argp;

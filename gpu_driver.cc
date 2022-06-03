@@ -237,7 +237,6 @@ int main(int argc, char *argv[]) {
   };
   struct nouveau_pushbuf *push = &push_local;
 
-  gpu_memcpy(push, 0x7FFFD6700004, (const uint32_t *)"\xbb\xaa\x00\x00\xdd\xcc\x00\x00", 8);
 
   //printf("fat\n");
   //hexdump((void*)&fatbinData[0x6D0/8], 0x1000);
@@ -251,8 +250,11 @@ int main(int argc, char *argv[]) {
   fclose(f);
   printf("loaded program\n");
 
-  uint64_t gpu_base = 0x7FFFD6700000;
+  uint64_t gpu_base = 0x200700000;
+  //uint64_t gpu_base = 0x7FFFD6701000;
+  //uint64_t gpu_base = 0x7FFFD6400000;
 
+  gpu_memcpy(push, gpu_base+4, (const uint32_t *)"\xbb\xaa\x00\x00\xdd\xcc\x00\x00", 8);
   gpu_memcpy(push, gpu_base+0x1000, program, 0x180);
   printf("memcpyed program\n");
   //gpu_memset(push, 0x7FFFD6701000, trivial, 0x40);
@@ -267,7 +269,7 @@ int main(int argc, char *argv[]) {
   args.addr = gpu_base;
   args.value1 = 0x1337-0x200;
   args.value2 = 0x1337-0x100;
-  gpu_memcpy(push, 0x7FFFD6702160, (const uint32_t*)&args, 0x10);
+  gpu_memcpy(push, gpu_base+0x2160, (const uint32_t*)&args, 0x10);
   //gpu_memset(push, 0x7FFFD6702028, (const uint32_t *)"\xC0\xFD\xFF\x00", 4);
 
   gpu_compute(push, 0x204E020, gpu_base+0x1000, gpu_base+0x2000, 0x188);
@@ -287,7 +289,7 @@ int main(int argc, char *argv[]) {
   dump_command_buffer(0x2004003e8);
   dump_command_buffer(0x2004003f0);*/
 
-  printf("pc\n");
+  printf("pc %p\n", (void*)gpu_base);
   hexdump((void*)gpu_base, 0x20);
   /*printf("fat\n");
   hexdump((void*)(gpu_base+0x1000), 0x180);*/
