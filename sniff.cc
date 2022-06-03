@@ -38,6 +38,13 @@ uint32_t *fake = NULL;             // this is an empty page that will cause a tr
 static void handler(int sig, siginfo_t *si, void *unused) {
   ucontext_t *u = (ucontext_t *)unused;
   uint8_t *rip = (uint8_t*)u->uc_mcontext.gregs[REG_RIP];
+
+  if (si->si_addr < fake || si->si_addr >= fake+0x1000) {
+    // this is not our hacked page, segfault
+    printf("segfault at %p\n", si->si_addr);
+    exit(-1);
+  }
+
   //hexdump(rip, 0x10);
 
   // it's rcx on some CUDA drivers
