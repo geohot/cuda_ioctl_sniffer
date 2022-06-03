@@ -26,6 +26,7 @@
 #include "src/common/sdk/nvidia/inc/ctrl/ctrlc36f.h"
 #include "src/common/sdk/nvidia/inc/ctrl/ctrla06c.h"
 #include "src/common/sdk/nvidia/inc/ctrl/ctrla06f/ctrla06fgpfifo.h"
+#include "src/nvidia/generated/g_allclasses.h"
 
 #include <map>
 std::map<int, std::string> files;
@@ -192,7 +193,18 @@ int ioctl(int filedes, unsigned long request, void *argp) {
           case NV0000_CTRL_CMD_GPU_GET_PROBED_IDS: cmd_string = "NV0000_CTRL_CMD_GPU_GET_PROBED_IDS"; break;
           case NV0000_CTRL_CMD_GPU_GET_MEMOP_ENABLE: cmd_string = "NV0000_CTRL_CMD_GPU_GET_MEMOP_ENABLE"; break;
           case NV0000_CTRL_CMD_SYNC_GPU_BOOST_GROUP_INFO: cmd_string = "NV0000_CTRL_CMD_SYNC_GPU_BOOST_GROUP_INFO"; break;
-          case NV0000_CTRL_CMD_CLIENT_GET_ADDR_SPACE_TYPE: cmd_string = "NV0000_CTRL_CMD_CLIENT_GET_ADDR_SPACE_TYPE"; break;
+          case NV0000_CTRL_CMD_CLIENT_GET_ADDR_SPACE_TYPE: {
+            /*
+              #define NV0000_CTRL_CMD_CLIENT_GET_ADDR_SPACE_TYPE_INVALID 0x00000000
+              #define NV0000_CTRL_CMD_CLIENT_GET_ADDR_SPACE_TYPE_SYSMEM  0x00000001
+              #define NV0000_CTRL_CMD_CLIENT_GET_ADDR_SPACE_TYPE_VIDMEM  0x00000002
+              #define NV0000_CTRL_CMD_CLIENT_GET_ADDR_SPACE_TYPE_REGMEM  0x00000003
+              #define NV0000_CTRL_CMD_CLIENT_GET_ADDR_SPACE_TYPE_FABRIC  0x00000004
+            */
+            NV0000_CTRL_CLIENT_GET_ADDR_SPACE_TYPE_PARAMS *subParams = (NV0000_CTRL_CLIENT_GET_ADDR_SPACE_TYPE_PARAMS *)p->params;
+            printf("in: hObject=%x  mapFlags=%x   out: addrSpaceType:%x ", subParams->hObject, subParams->mapFlags, subParams->addrSpaceType);
+            cmd_string = "NV0000_CTRL_CMD_CLIENT_GET_ADDR_SPACE_TYPE"; break;
+          }
           case NV0000_CTRL_CMD_CLIENT_SET_INHERITED_SHARE_POLICY: cmd_string = "NV0000_CTRL_CMD_CLIENT_SET_INHERITED_SHARE_POLICY"; break;
           cmd(NV0000_CTRL_CMD_SYSTEM_GET_P2P_CAPS_MATRIX);
           cmd(NV0000_CTRL_CMD_GPU_DETACH_IDS);
@@ -254,8 +266,27 @@ int ioctl(int filedes, unsigned long request, void *argp) {
       } break;
       case NV_ESC_RM_ALLOC: {
         NVOS21_PARAMETERS *p = (NVOS21_PARAMETERS *)argp;
-        printf("NV_ESC_RM_ALLOC hRoot: %x hObjectParent: %x hObjectNew: %x hClass: %x pAllocParms: %p status: %x\n", p->hRoot, p->hObjectParent, p->hObjectNew,
-          p->hClass, p->pAllocParms, p->status);
+        const char *cls_string = "";
+        #define cls(name) case name: cls_string = #name; break
+        switch (p->hClass){
+          cls(NV01_ROOT_CLIENT);
+          cls(NV01_DEVICE_0);
+          cls(NV01_EVENT_OS_EVENT);
+          cls(NV20_SUBDEVICE_0);
+          cls(TURING_USERMODE_A);
+          cls(FERMI_VASPACE_A);
+          cls(KEPLER_CHANNEL_GROUP_A);
+          cls(FERMI_CONTEXT_SHARE_A);
+          cls(AMPERE_CHANNEL_GPFIFO_A);
+          cls(AMPERE_DMA_COPY_B);
+          cls(AMPERE_COMPUTE_B);
+          cls(GT200_DEBUGGER);
+        }
+
+        printf("NV_ESC_RM_ALLOC hRoot: %x hObjectParent: %x hObjectNew: %x hClass: %s(%x) pAllocParms: %p status: %x\n", p->hRoot, p->hObjectParent, p->hObjectNew,
+          cls_string, p->hClass, p->pAllocParms, p->status);
+
+
       } break;
       case NV_ESC_RM_MAP_MEMORY: {
         NVOS33_PARAMETERS *p = (NVOS33_PARAMETERS *)argp;
