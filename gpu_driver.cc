@@ -191,6 +191,9 @@ void gpu_compute(struct nouveau_pushbuf *push, uint64_t qmd, uint64_t program_ad
 }
 
 void kick(int cb_index) {
+  // no sniffer
+  //volatile uint32_t *regs = (volatile uint32_t*)0x7ffff7fb9000;
+  // with sniffer
   volatile uint32_t *addr = (volatile uint32_t*)0x7ffff65c2090;
   *addr = cb_index;
 }
@@ -200,14 +203,17 @@ int main(int argc, char *argv[]) {
   // TODO: remove linking to CUDA
   CUdevice pdev;
   CUcontext pctx;
+  printf("**** init\n");
   cuInit(0);
+  printf("**** device\n");
   cuDeviceGet(&pdev, 0);
+  printf("**** ctx\n");
   cuCtxCreate(&pctx, 0, pdev);
 
-  clear_gpu_ctrl();
   printf("**************** INIT DONE ****************\n");
 
   // mallocs
+  /*clear_gpu_ctrl();
   int N = 1<<20;
   float *x, *y, *d_x, *d_y;
   x = (float*)malloc(N*sizeof(float));
@@ -220,7 +226,7 @@ int main(int argc, char *argv[]) {
   // test
   uint8_t junk[] = {0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x88};
   uint8_t junk_out[0x10000] = {0};
-  cuMemcpy((CUdeviceptr)d_x, (CUdeviceptr)junk, 8);
+  cuMemcpy((CUdeviceptr)d_x, (CUdeviceptr)junk, 8);*/
 
   // *** my driver starts here
 
@@ -267,21 +273,12 @@ int main(int argc, char *argv[]) {
   gpu_compute(push, 0x204E020, gpu_base+0x1000, gpu_base+0x2000, 0x188);
 
   // this isn't happening if you do compute
-  gpu_dma_copy(push, gpu_base+0x10, gpu_base+4, 0x10);
+  gpu_dma_copy(push, gpu_base+0x10, gpu_base+4, 8);
 
   uint64_t sz = (uint64_t)push->cur - cmdq;
   *((uint64_t*)0x2004003f0) = cmdq | (sz << 40) | 0x20000000000;
   *((uint64_t*)0x20040208c) = 0x7f;
 
-  // 200400000-200600000 rw-s 00000000 00:05 630                              /dev/nvidia0                                 
-
-  //munmap((void*)0x7ffff7fb9000, 0x10000);
-
-  // no sniffer
-  //volatile uint32_t *regs = (volatile uint32_t*)0x7ffff7fb9000;
-
-  // with sniffer
-  //volatile uint32_t *regs = (volatile uint32_t*)0x7ffff7fa5000;
   kick(0xd);
   usleep(200*1000);
 
