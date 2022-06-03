@@ -128,7 +128,7 @@ const uint32_t trivial[] = {
 
 #include "out/saxpy.fatbin.c"
 
-void gpu_compute(struct nouveau_pushbuf *push, uint64_t qmd, uint64_t release_address, uint64_t program_address, uint64_t constant_address, int constant_length) {
+void gpu_compute(struct nouveau_pushbuf *push, uint64_t qmd, uint64_t program_address, uint64_t constant_address, int constant_length) {
   BEGIN_NVC0(push, 1, NVC6C0_SET_INLINE_QMD_ADDRESS_A, 2);
   PUSH_DATAh(push, qmd);
   PUSH_DATAl(push, qmd);
@@ -164,7 +164,7 @@ void gpu_compute(struct nouveau_pushbuf *push, uint64_t qmd, uint64_t release_ad
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_CTA_THREAD_DIMENSION1,,, 1, dat);
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_CTA_THREAD_DIMENSION2,,, 1, dat);
 
-  // this isn't needed
+  // this isn't needed, what does it do?
   /*FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_RELEASE0_ADDRESS_LOWER,,, release_address, dat);
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_RELEASE0_ADDRESS_UPPER,,, release_address>>32, dat);
   FLD_SET_DRF_NUM_MW(C6C0_QMDV03_00_RELEASE0_ENABLE,,, 1, dat);
@@ -188,6 +188,11 @@ void gpu_compute(struct nouveau_pushbuf *push, uint64_t qmd, uint64_t release_ad
   for (int i = 0; i < 0x40; i++) {
     PUSH_DATA(push, dat[i]);
   }
+}
+
+void kick(int cb_index) {
+  volatile uint32_t *addr = (volatile uint32_t*)0x7ffff65c2090;
+  *addr = cb_index;
 }
 
 int main(int argc, char *argv[]) {
@@ -238,7 +243,12 @@ int main(int argc, char *argv[]) {
   fseek(f, 0x600, SEEK_SET);
   fread(program, 1, 0x180, f);
   fclose(f);
-  gpu_memcpy(push, 0x7FFFD6701000, program, 0x180);
+  printf("loaded program\n");
+
+  uint64_t gpu_base = 0x7FFFD6700000;
+
+  gpu_memcpy(push, gpu_base+0x1000, program, 0x180);
+  printf("memcpyed program\n");
   //gpu_memset(push, 0x7FFFD6701000, trivial, 0x40);
 
   struct {
@@ -248,16 +258,16 @@ int main(int argc, char *argv[]) {
   } args;
 
   //args.addr = (uint64_t)d_x;
-  args.addr = 0x7FFFD6700000;
+  args.addr = gpu_base;
   args.value1 = 0x1337-0x200;
   args.value2 = 0x1337-0x100;
   gpu_memcpy(push, 0x7FFFD6702160, (const uint32_t*)&args, 0x10);
   //gpu_memset(push, 0x7FFFD6702028, (const uint32_t *)"\xC0\xFD\xFF\x00", 4);
 
-  gpu_compute(push, 0x204E020, 0x205007fbc, 0x7FFFD6701000, 0x7FFFD6702000, 0x188);
+  gpu_compute(push, 0x204E020, gpu_base+0x1000, gpu_base+0x2000, 0x188);
 
   // this isn't happening if you do compute
-  gpu_dma_copy(push, 0x7FFFD6700010, 0x7FFFD6700004, 0x10);
+  gpu_dma_copy(push, gpu_base+0x10, gpu_base+4, 0x10);
 
   uint64_t sz = (uint64_t)push->cur - cmdq;
   *((uint64_t*)0x2004003f0) = cmdq | (sz << 40) | 0x20000000000;
@@ -266,19 +276,25 @@ int main(int argc, char *argv[]) {
   // 200400000-200600000 rw-s 00000000 00:05 630                              /dev/nvidia0                                 
 
   //munmap((void*)0x7ffff7fb9000, 0x10000);
-  volatile uint32_t *regs = (volatile uint32_t*)0x7ffff7fb9000;
-  regs[0x90/4] = 0xd;
+
+  // no sniffer
+  //volatile uint32_t *regs = (volatile uint32_t*)0x7ffff7fb9000;
+
+  // with sniffer
+  //volatile uint32_t *regs = (volatile uint32_t*)0x7ffff7fa5000;
+  kick(0xd);
   usleep(200*1000);
 
 
-  dump_gpu_ctrl();
+  /*dump_gpu_ctrl();
   dump_command_buffer(0x2004003e8);
-  dump_command_buffer(0x2004003f0);
+  dump_command_buffer(0x2004003f0);*/
 
   printf("pc\n");
-  hexdump((void*)0x7FFFD6700000, 0x20);
-  printf("fat\n");
-  hexdump((void*)0x7FFFD6701000, 0x180);
+  hexdump((void*)gpu_base, 0x20);
+  /*printf("fat\n");
+  hexdump((void*)(gpu_base+0x1000), 0x180);*/
+
   //printf("constant\n");
   //hexdump((void*)0x7FFFD6702000, 0x200);
   //hexdump((void*)0x7FFFD6702160, 0x20);

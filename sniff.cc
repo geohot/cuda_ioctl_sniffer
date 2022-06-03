@@ -35,6 +35,20 @@ volatile uint32_t *real = NULL;    // this is the actual mapping of the MMIO pag
 uint32_t *realfake = NULL;         // this is where we actually redirect the write to (TODO: can we just put real in here)
 uint32_t *fake = NULL;             // this is an empty page that will cause a trap
 
+void hook(uint64_t addr, uint64_t rdx, int start) {
+  printf("HOOK 0x%lx = %lx\n", addr, rdx);
+  uint32_t *base = (uint32_t*)(0x200400000 + ((rdx&0xFFFF)-start)*0x3000);
+  printf("base %p range %d-%d\n", base, base[0x2088/4], base[0x208c/4]);
+
+  for (int q = base[0x2088/4]; q < base[0x208c/4]; q++) {
+    uint64_t qq = ((uint64_t)base[q*2+1]<<32) | base[q*2];
+    dump_command_buffer((uint64_t)&base[q*2]);
+  }
+
+  // kick off the GPU command queue
+  real[0x90/4] = rdx;
+}
+
 static void handler(int sig, siginfo_t *si, void *unused) {
   ucontext_t *u = (ucontext_t *)unused;
   uint8_t *rip = (uint8_t*)u->uc_mcontext.gregs[REG_RIP];
@@ -56,24 +70,21 @@ static void handler(int sig, siginfo_t *si, void *unused) {
   if (rip[0] == 0x89 && rip[1] == 0x10) {
     rdx = u->uc_mcontext.gregs[REG_RDX];
     start = 0xd;
-  } else {
+  } else if (rip[0] == 0x89 && rip[1] == 0x08) {
     rdx = u->uc_mcontext.gregs[REG_RCX];
-    start = 0x30;
+    start = 0xd;
+    // TODO: this is wrong on z
+    //start = 0x30;
+  } else {
+    printf("UNKNOWN CALL ASM\n");
+    hexdump(rip, 0x80);
+    printf("intercept %02X %02X %02X %02X rip %p\n", rip[0], rip[1], rip[2], rip[3], rip);
+    exit(-1);
   }
 
   uint64_t addr = (uint64_t)si->si_addr-(uint64_t)fake+(uint64_t)realfake;
   if ((addr & 0xFF) == 0x90) {
-    printf("HOOK 0x%lx = %lx\n", addr, rdx);
-    uint32_t *base = (uint32_t*)(0x200400000 + ((rdx&0xFFFF)-start)*0x3000);
-    printf("base %p range %d-%d\n", base, base[0x2088/4], base[0x208c/4]);
-
-    for (int q = base[0x2088/4]; q < base[0x208c/4]; q++) {
-      uint64_t qq = ((uint64_t)base[q*2+1]<<32) | base[q*2];
-      dump_command_buffer((uint64_t)&base[q*2]);
-    }
-
-    // kick off the GPU command queue
-    real[0x90/4] = rdx;
+    hook(addr, rdx, start);
   }
 
   u->uc_mcontext.gregs[REG_RAX] = addr;
@@ -107,10 +118,10 @@ void *mmap64(void *addr, size_t length, int prot, int flags, int fd, off_t offse
   void *ret = my_mmap64(addr, length, prot, flags, fd, offset);
 
   if (flags == 0x1 && length == 0x10000 && !real) {
-    printf("YOU SUNK MY BATTLESHIP\n");
     real = (uint32_t *)ret;
     realfake = (uint32_t *)mmap(NULL, length, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANON, -1, 0);
     ret = fake = (uint32_t *)mmap(NULL, length, PROT_NONE, MAP_SHARED | MAP_ANON, -1, 0);
+    printf("YOU SUNK MY BATTLESHIP: real %p    realfake: %p    fake: %p\n", real, realfake, fake);
   }
 
   if (fd != -1) printf("mmapped(64) %p (target %p) with flags 0x%x length %zx fd %d\n", ret, addr, flags, length, fd);
