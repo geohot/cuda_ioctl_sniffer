@@ -17,7 +17,7 @@
 //void gpu_memset(int subc, void *)
 
 // NVC6B5 = AMPERE_DMA_COPY_A
-void gpu_memcpy(struct nouveau_pushbuf *push, uint64_t dst, uint64_t src, int len) {
+void gpu_dma_copy(struct nouveau_pushbuf *push, uint64_t dst, uint64_t src, int len) {
   BEGIN_NVC0(push, 4, NVC6B5_OFFSET_IN_UPPER, 4);
   PUSH_DATAh(push, src);
   PUSH_DATAl(push, src);
@@ -33,7 +33,7 @@ void gpu_memcpy(struct nouveau_pushbuf *push, uint64_t dst, uint64_t src, int le
 }
 
 // NVC6C0 = AMPERE_COMPUTE_A
-void gpu_memset(struct nouveau_pushbuf *push, uint64_t dst, const uint32_t *dat, int len) {
+void gpu_memcpy(struct nouveau_pushbuf *push, uint64_t dst, const uint32_t *dat, int len) {
   assert(len%4 == 0);
 
   BEGIN_NVC0(push, 1, NVC6C0_OFFSET_OUT_UPPER, 2);
@@ -226,7 +226,7 @@ int main(int argc, char *argv[]) {
   };
   struct nouveau_pushbuf *push = &push_local;
 
-  gpu_memset(push, 0x7FFFD6700004, (const uint32_t *)"\xbb\xaa\x00\x00\xdd\xcc\x00\x00", 8);
+  gpu_memcpy(push, 0x7FFFD6700004, (const uint32_t *)"\xbb\xaa\x00\x00\xdd\xcc\x00\x00", 8);
 
   //printf("fat\n");
   //hexdump((void*)&fatbinData[0x6D0/8], 0x1000);
@@ -238,7 +238,7 @@ int main(int argc, char *argv[]) {
   fseek(f, 0x600, SEEK_SET);
   fread(program, 1, 0x180, f);
   fclose(f);
-  gpu_memset(push, 0x7FFFD6701000, program, 0x180);
+  gpu_memcpy(push, 0x7FFFD6701000, program, 0x180);
   //gpu_memset(push, 0x7FFFD6701000, trivial, 0x40);
 
   struct {
@@ -251,13 +251,13 @@ int main(int argc, char *argv[]) {
   args.addr = 0x7FFFD6700000;
   args.value1 = 0x1337-0x200;
   args.value2 = 0x1337-0x100;
-  gpu_memset(push, 0x7FFFD6702160, (const uint32_t*)&args, 0x10);
+  gpu_memcpy(push, 0x7FFFD6702160, (const uint32_t*)&args, 0x10);
   //gpu_memset(push, 0x7FFFD6702028, (const uint32_t *)"\xC0\xFD\xFF\x00", 4);
 
   gpu_compute(push, 0x204E020, 0x205007fbc, 0x7FFFD6701000, 0x7FFFD6702000, 0x188);
 
   // this isn't happening if you do compute
-  gpu_memcpy(push, 0x7FFFD6700010, 0x7FFFD6700004, 0x10);
+  gpu_dma_copy(push, 0x7FFFD6700010, 0x7FFFD6700004, 0x10);
 
   uint64_t sz = (uint64_t)push->cur - cmdq;
   *((uint64_t*)0x2004003f0) = cmdq | (sz << 40) | 0x20000000000;
