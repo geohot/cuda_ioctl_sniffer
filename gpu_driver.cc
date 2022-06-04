@@ -163,6 +163,8 @@ void *mmap_object(int fd_ctl, NvHandle root, NvHandle subdevice, NvHandle usermo
 
 // NVDRIVER=1 EXIT_IOCTL=94 BLOCK_IOCTL=11,12,78,85,73,82,16,20,30,13,15,17,19,35,71 ./driver.sh 
 
+// EXIT_IOCTL=95 NVDRIVER=1 BLOCK_IOCTL=11,12,78,85,73,82,16,20,30,13,15,17,19,35,71 ./driver.sh
+
 int main(int argc, char *argv[]) {
   int work_submit_token = 0;
   if (!getenv("NVDRIVER")) {
@@ -184,8 +186,6 @@ int main(int argc, char *argv[]) {
 
     // UVM_REGISTER_GPU
     // UVM_CREATE_RANGE_GROUP
-
-
     NvHandle mem;
     {
       NVOS32_PARAMETERS p = {0};
@@ -211,16 +211,13 @@ int main(int argc, char *argv[]) {
 
     NV_CHANNEL_GROUP_ALLOCATION_PARAMETERS cgap = {0};
     cgap.engineType = NV2080_ENGINE_TYPE_GRAPHICS;
-    //cgap.hVASpace = vaspace;
     NvHandle channel_group = alloc_object(fd_ctl, KEPLER_CHANNEL_GROUP_A, root, device, &cgap);
-    exit(0);
 
     NV_CTXSHARE_ALLOCATION_PARAMETERS cap = {0};
-    //cap.hVASpace = vaspace;
+    cap.hVASpace = vaspace;
     cap.flags = 1;
-    cap.subctxId = 0x3f;
     NvHandle share = alloc_object(fd_ctl, FERMI_CONTEXT_SHARE_A, root, channel_group, &cap);
-
+    exit(0);
 
     NvHandle mem_error;
     {
@@ -282,7 +279,6 @@ int main(int argc, char *argv[]) {
     cuDeviceGet(&pdev, 0);
     printf("**** ctx\n");
     cuCtxCreate(&pctx, 0, pdev);
-    exit(0);
     work_submit_token = 0xd;
   }
 
