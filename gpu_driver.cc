@@ -2,9 +2,17 @@
 #include "helpers.h"
 #include "nouveau.h"
 
+//#include "src/nvidia/inc/libraries/containers/type_safety.h"
+
+#define NV_PLATFORM_MAX_IOCTL_SIZE 0xFFF
+#include "src/common/sdk/nvidia/inc/ctrl/ctrl0000/ctrl0000gpu.h"
 #include "kernel-open/common/inc/nv-ioctl-numbers.h"
+#include "kernel-open/common/inc/nv.h"
 #include "src/nvidia/arch/nvalloc/unix/include/nv_escape.h"
+#include "src/nvidia/arch/nvalloc/unix/include/nv-unix-nvos-params-wrappers.h"
 #include "src/common/sdk/nvidia/inc/nvos.h"
+#include "src/nvidia/generated/g_allclasses.h"
+#include "rs.h"
 
 #include <thread>
 #include <sys/ioctl.h>
@@ -123,7 +131,84 @@ void kick(int cb_index) {
   *addr = cb_index;
 }
 
+NvHandle alloc_object(int fd_ctl, NvV32 hClass, NvHandle root, NvHandle parent, bool with_params) {
+  NVOS21_PARAMETERS p = {0};
+  p.hRoot = root;
+  p.hObjectParent = parent;
+  p.hClass = hClass;
+
+  // needed?
+  RS_RES_ALLOC_PARAMS_INTERNAL pp = {0};
+  if (with_params) {
+    pp.hParent = parent;
+    pp.allocFlags = NVOS32_ALLOC_FLAGS_FORCE_MEM_GROWS_UP;
+    p.pAllocParms = &pp;
+  }
+
+  int ret = ioctl(fd_ctl, __NV_IOWR(NV_ESC_RM_ALLOC, p), &p);
+  assert(ret == 0);
+  return p.hObjectNew;
+}
+
+// BLOCK_IOCTL=11,12,13,15,16,17,19,20,21,23 ./driver.sh 
+// BLOCK_IOCTL=53,54,55,56,57,58,59 ./driver.sh
+// BLOCK_IOCTL=71,72,73,74,75,76,77,78,79,80,81,82 ./driver.sh 
+
 int main(int argc, char *argv[]) {
+  /*cuInit(0);
+  exit(0);*/
+
+  int fd_ctl = open64("/dev/nvidiactl", O_RDWR);
+  NvHandle root = alloc_object(fd_ctl, NV01_ROOT_CLIENT, 0, 0, false);
+  int fd_dev0 = open64("/dev/nvidia0", O_RDWR | O_CLOEXEC);
+
+  /*{
+    NVOS54_PARAMETERS p = {0};
+    NV0000_CTRL_GPU_ATTACH_IDS_PARAMS sp = {0};
+    for (int i = 0; i < 32; i++) sp.gpuIds[i] = -1;
+    sp.failedId = -1;
+    sp.gpuIds[0] = 0x900;
+    p.cmd = NV0000_CTRL_CMD_GPU_ATTACH_IDS;
+    p.hClient = root;
+    p.hObject = root;
+    p.params = &sp;
+    p.paramsSize = sizeof(sp);
+    int ret = ioctl(fd_ctl, __NV_IOWR(NV_ESC_RM_CONTROL, p), &p);
+    assert(ret == 0);
+  }
+
+  {
+    nv_ioctl_register_fd_t p = {0};
+    p.ctl_fd = fd_ctl;
+    int ret = ioctl(fd_dev0, __NV_IOWR(NV_ESC_REGISTER_FD, p), &p);
+    assert(ret == 0);
+  }*/
+
+  NvHandle device = alloc_object(fd_ctl, NV01_DEVICE_0, root, root, false);
+  NvHandle subdevice = alloc_object(fd_ctl, NV20_SUBDEVICE_0, root, device, false);
+  NvHandle usermode = alloc_object(fd_ctl, TURING_USERMODE_A, root, subdevice, false);
+
+  //fd_dev0 = open64("/dev/nvidia0", O_RDWR | O_CLOEXEC);
+  {
+    nv_ioctl_nvos33_parameters_with_fd p = {0};
+    p.params.hClient = root;
+    p.params.hDevice = subdevice;
+    p.params.hMemory = usermode;
+    /*p.hClient = 0xc1d018a3;
+    p.hDevice = 0x5c000002;
+    p.hMemory = 0x5c000003;*/
+    p.params.pLinearAddress = (void*)0xfbbb0000;
+    p.params.length = 0x10000;
+    p.params.flags = 2;
+    p.fd = fd_dev0;
+    int ret = ioctl(fd_ctl, __NV_IOWR(NV_ESC_RM_MAP_MEMORY, p), &p);
+    assert(ret == 0);
+  }
+  void *gpu_ptr = mmap64(NULL, 0x10000, PROT_WRITE, 1, fd_dev0, 0);
+
+  exit(0);
+
+
   // our GPU driver doesn't support init. use CUDA
   // TODO: remove linking to CUDA
   CUdevice pdev;

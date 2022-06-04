@@ -1,4 +1,6 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <cassert>
 #include <cstring>
 #include <stdint.h>
 #include <dlfcn.h>
@@ -14,6 +16,7 @@
 #include "kernel-open/common/inc/nv-ioctl-numbers.h"
 #define NV_ESC_NUMA_INFO         (NV_IOCTL_BASE + 15)
 #include "src/nvidia/arch/nvalloc/unix/include/nv_escape.h"
+#include "src/nvidia/arch/nvalloc/unix/include/nv-unix-nvos-params-wrappers.h"
 #include "src/common/sdk/nvidia/inc/nvos.h"
 #include "src/common/sdk/nvidia/inc/ctrl/ctrl0000/ctrl0000system.h"
 #include "src/common/sdk/nvidia/inc/ctrl/ctrl0000/ctrl0000client.h"
@@ -27,6 +30,7 @@
 #include "src/common/sdk/nvidia/inc/ctrl/ctrla06c.h"
 #include "src/common/sdk/nvidia/inc/ctrl/ctrla06f/ctrla06fgpfifo.h"
 #include "src/nvidia/generated/g_allclasses.h"
+#include "rs.h"
 
 #include <map>
 std::map<int, std::string> files;
@@ -108,7 +112,7 @@ int (*my_open64)(const char *pathname, int flags, mode_t mode);
 int open64(const char *pathname, int flags, mode_t mode) {
   if (my_open64 == NULL) my_open64 = reinterpret_cast<decltype(my_open64)>(dlsym(RTLD_NEXT, "open64"));
   int ret = my_open64(pathname, flags, mode);
-  printf("open %s = %d\n", pathname, ret);
+  printf("open %s (0o%o) = %d\n", pathname, flags, ret);
   files[ret] = pathname;
   return ret;
 }
@@ -121,12 +125,13 @@ void *mmap64(void *addr, size_t length, int prot, int flags, int fd, off_t offse
 
   if (flags == 0x1 && length == 0x10000 && !real) {
     real = (uint32_t *)ret;
+    assert(real != (void*)-1);
     realfake = (uint32_t *)mmap(NULL, length, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANON, -1, 0);
     ret = fake = (uint32_t *)mmap(NULL, length, PROT_NONE, MAP_SHARED | MAP_ANON, -1, 0);
     printf("YOU SUNK MY BATTLESHIP: real %p    realfake: %p    fake: %p\n", real, realfake, fake);
   }
 
-  if (fd != -1) printf("mmapped(64) %p (target %p) with flags 0x%x length 0x%zx fd %d\n", ret, addr, flags, length, fd);
+  if (fd != -1) printf("mmapped(64) %p (target %p) with prot 0x%x flags 0x%x length 0x%zx fd %d\n", ret, addr, prot, flags, length, fd);
   return ret;
 }
 
@@ -141,18 +146,38 @@ void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
   return ret;
 }
 
+int ioctl_num = 1;
 int (*my_ioctl)(int filedes, unsigned long request, void *argp) = NULL;
 #undef ioctl
 int ioctl(int filedes, unsigned long request, void *argp) {
   if (my_ioctl == NULL) my_ioctl = reinterpret_cast<decltype(my_ioctl)>(dlsym(RTLD_NEXT, "ioctl"));
-  int ret = my_ioctl(filedes, request, argp);
+  int ret = 0;
 
   uint8_t type = (request >> 8) & 0xFF;
   uint8_t nr = (request >> 0) & 0xFF;
   uint16_t size = (request >> 16) & 0xFFF;
 
   if (type == NV_IOCTL_MAGIC) {
-    printf("%3d(%20s) 0x%3x ", filedes, files[filedes].c_str(), size);
+    char *block_ioctl = getenv("BLOCK_IOCTL");
+    bool should_block = false;
+    if (block_ioctl) {
+      char *prev = block_ioctl;
+      while (1) {
+        int tmp = strtol(prev, &prev, 10);
+        if (*prev == ',') prev++;
+        if (tmp == 0) break;
+        if (tmp == ioctl_num) should_block = true;
+      }
+    }
+
+    if (should_block) {
+      printf("BLOCKED ");
+    } else {
+      ret = my_ioctl(filedes, request, argp);
+    }
+
+    printf("%3d: %d = %3d(%20s) 0x%3x ", ioctl_num, ret, filedes, files[filedes].c_str(), size);
+    ioctl_num++;
     switch (nr) {
       // main ones
       case NV_ESC_CARD_INFO: printf("NV_ESC_CARD_INFO\n"); break;
@@ -187,7 +212,11 @@ int ioctl(int filedes, unsigned long request, void *argp) {
         switch (p->cmd) {
           case NV0000_CTRL_CMD_SYSTEM_GET_BUILD_VERSION: cmd_string = "NV0000_CTRL_CMD_SYSTEM_GET_BUILD_VERSION"; break;
           case NV0000_CTRL_CMD_SYSTEM_GET_FABRIC_STATUS: cmd_string = "NV0000_CTRL_CMD_SYSTEM_GET_FABRIC_STATUS"; break;
-          case NV0000_CTRL_CMD_GPU_ATTACH_IDS: cmd_string = "NV0000_CTRL_CMD_GPU_ATTACH_IDS"; break;
+          case NV0000_CTRL_CMD_GPU_ATTACH_IDS: {
+            NV0000_CTRL_GPU_ATTACH_IDS_PARAMS *subParams = (NV0000_CTRL_GPU_ATTACH_IDS_PARAMS *)p->params;
+            printf("attaching %x ", subParams->gpuIds[0]);
+            cmd_string = "NV0000_CTRL_CMD_GPU_ATTACH_IDS"; break;
+          }
           case NV0000_CTRL_CMD_GPU_GET_ATTACHED_IDS: cmd_string = "NV0000_CTRL_CMD_GPU_GET_ATTACHED_IDS"; break;
           case NV0000_CTRL_CMD_GPU_GET_ID_INFO: cmd_string = "NV0000_CTRL_CMD_GPU_GET_ID_INFO"; break;
           case NV0000_CTRL_CMD_GPU_GET_PROBED_IDS: cmd_string = "NV0000_CTRL_CMD_GPU_GET_PROBED_IDS"; break;
@@ -262,7 +291,8 @@ int ioctl(int filedes, unsigned long request, void *argp) {
           default: cmd_string = "UNKNOWN"; break;
         }
         #undef cmd
-        printf("NV_ESC_RM_CONTROL client: %x object: %x cmd: %8x %s flags: %x\n", p->hClient, p->hObject, p->cmd, cmd_string, p->flags);
+        printf("NV_ESC_RM_CONTROL client: %x object: %x cmd: %8x %s params: %p 0x%x flags: %x\n", p->hClient, p->hObject, p->cmd, cmd_string, p->params, p->paramsSize, p->flags);
+        //hexdump(p->params, p->paramsSize);
       } break;
       case NV_ESC_RM_ALLOC: {
         NVOS21_PARAMETERS *p = (NVOS21_PARAMETERS *)argp;
@@ -285,13 +315,16 @@ int ioctl(int filedes, unsigned long request, void *argp) {
 
         printf("NV_ESC_RM_ALLOC hRoot: %x hObjectParent: %x hObjectNew: %x hClass: %s(%x) pAllocParms: %p status: %x\n", p->hRoot, p->hObjectParent, p->hObjectNew,
           cls_string, p->hClass, p->pAllocParms, p->status);
-
-
+        //p->pAllocParms = NULL;
+        if (p->pAllocParms != NULL) {
+          hexdump(p->pAllocParms, sizeof(RS_RES_ALLOC_PARAMS_INTERNAL));
+        }
       } break;
       case NV_ESC_RM_MAP_MEMORY: {
+        nv_ioctl_nvos33_parameters_with_fd *pfd = (nv_ioctl_nvos33_parameters_with_fd *)argp;
         NVOS33_PARAMETERS *p = (NVOS33_PARAMETERS *)argp;
-        printf("NV_ESC_RM_MAP_MEMORY hClient: %x hDevice: %x hMemory: %x pLinearAddress: %p offset: %llx length %llx status %x flags %x\n",
-          p->hClient, p->hDevice, p->hMemory, p->pLinearAddress, p->offset, p->length, p->status, p->flags);
+        printf("NV_ESC_RM_MAP_MEMORY hClient: %x hDevice: %x hMemory: %x pLinearAddress: %p offset: %llx length %llx status %x flags %x fd %d\n",
+          p->hClient, p->hDevice, p->hMemory, p->pLinearAddress, p->offset, p->length, p->status, p->flags, pfd->fd);
       } break;
       case NV_ESC_RM_UPDATE_DEVICE_MAPPING_INFO: printf("NV_ESC_RM_UPDATE_DEVICE_MAPPING_INFO\n"); break;
       case NV_ESC_RM_VID_HEAP_CONTROL: {
@@ -316,6 +349,9 @@ int ioctl(int filedes, unsigned long request, void *argp) {
         printf("UNKNOWN %lx\n", request);
         break;
     }
+  } else {
+    // non nvidia ioctl
+    ret = my_ioctl(filedes, request, argp);
   }
 
   return ret;
