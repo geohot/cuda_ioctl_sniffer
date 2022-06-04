@@ -134,6 +134,8 @@ void kick(int cb_index) {
   *addr = cb_index;
 }
 
+#define GPU_UUID "\xb4\xe9\x43\xc6\xdc\xb5\x96\x92\x6d\xb1\x04\x69\x18\x65\x8d\x08"
+
 NvHandle alloc_object(int fd_ctl, NvV32 hClass, NvHandle root, NvHandle parent, void *params) {
   NVOS21_PARAMETERS p = {0};
   p.hRoot = root;
@@ -197,6 +199,45 @@ int main(int argc, char *argv[]) {
     void *gpu_mmio_ptr = mmap_object(fd_ctl, root, subdevice, usermode, (void*)0xfbbb0000, 0x10000, NULL, 2);
     assert(gpu_mmio_ptr == (void *)0x13370000);
 
+    NV_VASPACE_ALLOCATION_PARAMETERS vap = {0};
+    vap.flags = NV_VASPACE_ALLOCATION_FLAGS_ENABLE_PAGE_FAULTING | NV_VASPACE_ALLOCATION_FLAGS_IS_EXTERNALLY_OWNED;
+    vap.vaBase = 0x1000;
+    NvHandle vaspace = alloc_object(fd_ctl, FERMI_VASPACE_A, root, device, &vap);
+
+    {
+      UVM_REGISTER_GPU_PARAMS p = {0};
+      // TODO: where do numbers come from?
+      memcpy(&p.gpu_uuid.uuid, GPU_UUID, 0x10);
+      p.rmCtrlFd = 0xffffffff;
+      int ret = ioctl(fd_uvm, UVM_REGISTER_GPU, &p);
+      assert(ret == 0);
+    }
+    {
+      UVM_CREATE_RANGE_GROUP_PARAMS p = {0};
+      int ret = ioctl(fd_uvm, UVM_CREATE_RANGE_GROUP, &p);
+      assert(ret == 0);
+    }
+    {
+      UVM_REGISTER_GPU_VASPACE_PARAMS p = {0};
+      // TODO: where do numbers come from?
+      memcpy(&p.gpuUuid.uuid, GPU_UUID, 0x10);
+      p.rmCtrlFd = fd_ctl;
+      p.hClient = root;
+      p.hVaSpace = vaspace;
+      int ret = ioctl(fd_uvm, UVM_REGISTER_GPU_VASPACE, &p);
+      assert(ret == 0);
+    }
+
+    NV_CHANNEL_GROUP_ALLOCATION_PARAMETERS cgap = {0};
+    cgap.engineType = NV2080_ENGINE_TYPE_GRAPHICS;
+    NvHandle channel_group = alloc_object(fd_ctl, KEPLER_CHANNEL_GROUP_A, root, device, &cgap);
+
+    NV_CTXSHARE_ALLOCATION_PARAMETERS cap = {0};
+    cap.hVASpace = vaspace;
+    cap.flags = 1;
+    NvHandle share = alloc_object(fd_ctl, FERMI_CONTEXT_SHARE_A, root, channel_group, &cap);
+
+
     NvHandle mem;
     {
       NVOS32_PARAMETERS p = {0};
@@ -215,46 +256,30 @@ int main(int argc, char *argv[]) {
     void *local_ptr = mmap_object(fd_ctl, root, subdevice, mem, (void*)0xd2580000, 0x200000, (void*)0x200400000, 0xc0000);
     assert(local_ptr == (void *)0x200400000);
 
-    NV_VASPACE_ALLOCATION_PARAMETERS vap = {0};
-    vap.flags = NV_VASPACE_ALLOCATION_FLAGS_ENABLE_PAGE_FAULTING | NV_VASPACE_ALLOCATION_FLAGS_IS_EXTERNALLY_OWNED;
-    vap.vaBase = 0x1000;
-    NvHandle vaspace = alloc_object(fd_ctl, FERMI_VASPACE_A, root, device, &vap);
-
     {
-      UVM_REGISTER_GPU_PARAMS p = {0};
-      // TODO: where do numbers come from?
-      memcpy(&p.gpu_uuid.uuid, "\xb4\xe9\x43\xc6\xdc\xb5\x96\x92\x6d\xb1\x04\x69\x18\x65\x8d\x08", 0x10);
-      p.rmCtrlFd = 0xffffffff;
-      int ret = ioctl(fd_uvm, UVM_REGISTER_GPU, &p);
+      UVM_CREATE_EXTERNAL_RANGE_PARAMS p = {0};
+      p.base = (NvU64)local_ptr;
+      p.length = 0x200000;
+      int ret = ioctl(fd_uvm, UVM_CREATE_EXTERNAL_RANGE, &p);
       assert(ret == 0);
     }
     {
-      UVM_CREATE_RANGE_GROUP_PARAMS p = {0};
-      int ret = ioctl(fd_uvm, UVM_CREATE_RANGE_GROUP, &p);
-      assert(ret == 0);
-    }
-    {
-      UVM_REGISTER_GPU_VASPACE_PARAMS p = {0};
-      // TODO: where do numbers come from?
-      memcpy(&p.gpuUuid.uuid, "\xb4\xe9\x43\xc6\xdc\xb5\x96\x92\x6d\xb1\x04\x69\x18\x65\x8d\x08", 0x10);
+      UVM_MAP_EXTERNAL_ALLOCATION_PARAMS p = {0};
+      p.base = (NvU64)local_ptr;
+      p.length = 0x200000;
       p.rmCtrlFd = fd_ctl;
       p.hClient = root;
-      p.hVaSpace = vaspace;
-      int ret = ioctl(fd_uvm, UVM_REGISTER_GPU_VASPACE, &p);
+      p.hMemory = mem;
+      p.gpuAttributesCount = 1;
+      memcpy(&p.perGpuAttributes[0].gpuUuid, GPU_UUID, 0x10);
+      p.perGpuAttributes[0].gpuMappingType = 1;
+      int ret = ioctl(fd_uvm, UVM_MAP_EXTERNAL_ALLOCATION, &p);
       assert(ret == 0);
     }
 
-    NV_CHANNEL_GROUP_ALLOCATION_PARAMETERS cgap = {0};
-    cgap.engineType = NV2080_ENGINE_TYPE_GRAPHICS;
-    NvHandle channel_group = alloc_object(fd_ctl, KEPLER_CHANNEL_GROUP_A, root, device, &cgap);
-
-    NV_CTXSHARE_ALLOCATION_PARAMETERS cap = {0};
-    cap.hVASpace = vaspace;
-    cap.flags = 1;
-    NvHandle share = alloc_object(fd_ctl, FERMI_CONTEXT_SHARE_A, root, channel_group, &cap);
     exit(0);
 
-    NvHandle mem_error;
+    /*NvHandle mem_error;
     {
       NVOS32_PARAMETERS p = {0};
       auto asz = &p.data.AllocSize;
@@ -269,10 +294,10 @@ int main(int argc, char *argv[]) {
     }
     void *local_err_ptr = mmap_object(fd_ctl, root, subdevice, mem_error, (void*)0, 0x1000, (void*)0x200800000, 0xc0000);
     assert(local_err_ptr == (void *)0x200800000);
-    memset(local_err_ptr, 0, 0x1000);
+    memset(local_err_ptr, 0, 0x1000);*/
 
     NV_CHANNELGPFIFO_ALLOCATION_PARAMETERS fifoap = {0};
-    fifoap.hObjectError = mem_error; // wrong
+    //fifoap.hObjectError = mem_error; // wrong
     fifoap.hObjectBuffer = mem;
     fifoap.gpFifoOffset = 0x200400000;
     fifoap.gpFifoEntries = 0x400;

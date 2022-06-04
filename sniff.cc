@@ -454,7 +454,21 @@ int ioctl(int filedes, unsigned long request, void *argp) {
         }
         case UVM_MAP_EXTERNAL_ALLOCATION: {
           UVM_MAP_EXTERNAL_ALLOCATION_PARAMS *p = (UVM_MAP_EXTERNAL_ALLOCATION_PARAMS *)argp;
-          printf("UVM_MAP_EXTERNAL_ALLOCATION base:%llx length:%llx\n", p->base, p->length);
+          printf("UVM_MAP_EXTERNAL_ALLOCATION base:%llx length:%llx offset:%llx gpuAttributesCount: %d rmCtrlFd: %x hClient: %x hMemory: %x rmStatus:%x\n",
+            p->base, p->length, p->offset,
+            p->gpuAttributesCount,
+            p->rmCtrlFd,
+            p->hClient, p->hMemory,
+            p->rmStatus);
+          for (int i =0; i < p->gpuAttributesCount; i++) {
+            printf("  UVM(%d) gpuMappingType:%x gpuCachingType:%x gpuFormatType: %x gpuElementBits: %x gpuCompressionType: %x\n", i,
+              p->perGpuAttributes[i].gpuMappingType,
+              p->perGpuAttributes[i].gpuCachingType,
+              p->perGpuAttributes[i].gpuFormatType,
+              p->perGpuAttributes[i].gpuElementBits,
+              p->perGpuAttributes[i].gpuCompressionType
+            );
+          }
           break;
         }
         case UVM_REGISTER_GPU_VASPACE: {
