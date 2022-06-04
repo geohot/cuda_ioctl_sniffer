@@ -204,9 +204,13 @@ int main(int argc, char *argv[]) {
     int ret = ioctl(fd_ctl, __NV_IOWR(NV_ESC_RM_MAP_MEMORY, p), &p);
     assert(ret == 0);
   }
-  void *gpu_ptr = mmap64(NULL, 0x10000, PROT_WRITE, 1, fd_dev0, 0);
+  //void *gpu_mmio_ptr = mmap64(NULL, 0x10000, PROT_WRITE, 1, fd_dev0, 0);
 
-  exit(0);
+  /*{
+    NVOS32_PARAMETERS p;
+    int ret = ioctl(fd_ctl, __NV_IOWR(NV_ESC_RM_MAP_MEMORY, p), &p);
+  }*/
+  //exit(0);
 
 
   // our GPU driver doesn't support init. use CUDA
@@ -224,7 +228,7 @@ int main(int argc, char *argv[]) {
 
   // set up command queue
   // TODO: don't hardcode addresses
-  uint64_t cmdq = 0x200600000;
+  uint64_t cmdq = 0x200480000;
   struct nouveau_pushbuf push_local = {
     .cur = (uint32_t*)cmdq
   };
@@ -238,7 +242,7 @@ int main(int argc, char *argv[]) {
   fclose(f);
   printf("loaded program\n");
 
-  uint64_t gpu_base = 0x200700000;
+  uint64_t gpu_base = 0x200500000;
   gpu_memcpy(push, gpu_base+4, (const uint32_t*)"\xaa\xbb\xcc\xdd", 4);
   printf("memcpyed program into gpu memory\n");
 
