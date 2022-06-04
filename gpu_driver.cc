@@ -179,11 +179,8 @@ int main(int argc, char *argv[]) {
       assert(ret == 0);
     }
     {
-      UVM_REGISTER_GPU_PARAMS p = {0};
-      // TODO: where do numbers come from?
-      memcpy(&p.gpu_uuid.uuid, "\xb4\xe9\x43\xc6\xdc\xb5\x96\x92", 8);
-      p.rmCtrlFd = 0xffffffff;
-      int ret = ioctl(fd_uvm, UVM_REGISTER_GPU, &p);
+      UVM_PAGEABLE_MEM_ACCESS_PARAMS p = {0};
+      int ret = ioctl(fd_uvm, UVM_PAGEABLE_MEM_ACCESS, &p);
       assert(ret == 0);
     }
 
@@ -200,8 +197,6 @@ int main(int argc, char *argv[]) {
     void *gpu_mmio_ptr = mmap_object(fd_ctl, root, subdevice, usermode, (void*)0xfbbb0000, 0x10000, NULL, 2);
     assert(gpu_mmio_ptr == (void *)0x13370000);
 
-    // UVM_REGISTER_GPU
-    // UVM_CREATE_RANGE_GROUP
     NvHandle mem;
     {
       NVOS32_PARAMETERS p = {0};
@@ -224,6 +219,30 @@ int main(int argc, char *argv[]) {
     vap.flags = NV_VASPACE_ALLOCATION_FLAGS_ENABLE_PAGE_FAULTING | NV_VASPACE_ALLOCATION_FLAGS_IS_EXTERNALLY_OWNED;
     vap.vaBase = 0x1000;
     NvHandle vaspace = alloc_object(fd_ctl, FERMI_VASPACE_A, root, device, &vap);
+
+    {
+      UVM_REGISTER_GPU_PARAMS p = {0};
+      // TODO: where do numbers come from?
+      memcpy(&p.gpu_uuid.uuid, "\xb4\xe9\x43\xc6\xdc\xb5\x96\x92\x6d\xb1\x04\x69\x18\x65\x8d\x08", 0x10);
+      p.rmCtrlFd = 0xffffffff;
+      int ret = ioctl(fd_uvm, UVM_REGISTER_GPU, &p);
+      assert(ret == 0);
+    }
+    {
+      UVM_CREATE_RANGE_GROUP_PARAMS p = {0};
+      int ret = ioctl(fd_uvm, UVM_CREATE_RANGE_GROUP, &p);
+      assert(ret == 0);
+    }
+    {
+      UVM_REGISTER_GPU_VASPACE_PARAMS p = {0};
+      // TODO: where do numbers come from?
+      memcpy(&p.gpuUuid.uuid, "\xb4\xe9\x43\xc6\xdc\xb5\x96\x92\x6d\xb1\x04\x69\x18\x65\x8d\x08", 0x10);
+      p.rmCtrlFd = fd_ctl;
+      p.hClient = root;
+      p.hVaSpace = vaspace;
+      int ret = ioctl(fd_uvm, UVM_REGISTER_GPU_VASPACE, &p);
+      assert(ret == 0);
+    }
 
     NV_CHANNEL_GROUP_ALLOCATION_PARAMETERS cgap = {0};
     cgap.engineType = NV2080_ENGINE_TYPE_GRAPHICS;

@@ -441,10 +441,10 @@ int ioctl(int filedes, unsigned long request, void *argp) {
         }
         case UVM_REGISTER_GPU: {
           UVM_REGISTER_GPU_PARAMS *p = (UVM_REGISTER_GPU_PARAMS *)argp;
-          printf("UVM_REGISTER_GPU gpu_uuid:%x %x %x %x %x %x %x %x rmCtrlFd:%x hClient:%x hSmcPartRef:%x\n",
+          printf("UVM_REGISTER_GPU gpu_uuid:%x %x %x %x %x %x %x %x rmCtrlFd:%x hClient:%x hSmcPartRef:%x rmStatus:%x\n",
             p->gpu_uuid.uuid[0], p->gpu_uuid.uuid[1], p->gpu_uuid.uuid[2], p->gpu_uuid.uuid[3],
             p->gpu_uuid.uuid[4], p->gpu_uuid.uuid[5], p->gpu_uuid.uuid[6], p->gpu_uuid.uuid[7],
-            p->rmCtrlFd, p->hClient, p->hSmcPartRef);
+            p->rmCtrlFd, p->hClient, p->hSmcPartRef, p->rmStatus);
           break;
         }
         case UVM_CREATE_RANGE_GROUP: {
@@ -459,7 +459,7 @@ int ioctl(int filedes, unsigned long request, void *argp) {
         }
         case UVM_REGISTER_GPU_VASPACE: {
           UVM_REGISTER_GPU_VASPACE_PARAMS *p = (UVM_REGISTER_GPU_VASPACE_PARAMS *)argp;
-          printf("UVM_REGISTER_GPU_VASPACE_PARAMS gpu_uuid:%x rmCtrlFd:%x hClient:%x hVaSpace:%x rmStatus:%x\n", p->gpuUuid, p->rmCtrlFd, p->hClient, p->hVaSpace, p->rmStatus);
+          printf("UVM_REGISTER_GPU_VASPACE_PARAMS gpu_uuid:*** rmCtrlFd:%x hClient:%x hVaSpace:%x rmStatus:%x\n", p->rmCtrlFd, p->hClient, p->hVaSpace, p->rmStatus);
           break;
         }
         case UVM_CREATE_EXTERNAL_RANGE: {
