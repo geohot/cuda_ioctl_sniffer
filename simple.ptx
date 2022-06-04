@@ -2,28 +2,14 @@
 .target sm_86
 .address_size 64
 
-.visible .entry write_float(
-	.param .u64 ptr,
-	.param .u32 value1,
-	.param .u32 value2
-)
-{
-	.reg .pred 	%p<2>;
-	.reg .b32 	%r<3>;
+.visible .entry write_float(.param .u64 ptr, .param .u32 value) {
+	.reg .b32 	%r<2>;
 	.reg .b64 	%rd<3>;
 
+	// *ptr = value;
 	ld.param.u64 	%rd1, [ptr];
-	ld.param.u32 	%r1, [value1];
-	ld.param.u32 	%r2, [value2];
-
+	ld.param.u32 	%r1, [value];
 	cvta.to.global.u64 	%rd2, %rd1;
-
-  setp.ge.s32 	%p1, %r1, %r2;
-  @%p1 bra 	$L__BB0_2;
-
 	st.global.u32 	[%rd2], %r1;
-	//ld.global.u32 	%r1, [%rd2];
-
-$L__BB0_2:
 	ret;
 }

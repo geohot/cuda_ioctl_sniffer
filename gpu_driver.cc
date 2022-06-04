@@ -1,7 +1,6 @@
 // TODO: write userspace GPU driver
 #include "helpers.h"
 #include "nouveau.h"
-//#include "shadow.h"
 
 #include "kernel-open/common/inc/nv-ioctl-numbers.h"
 #include "src/nvidia/arch/nvalloc/unix/include/nv_escape.h"
@@ -53,80 +52,6 @@ void gpu_memcpy(struct nouveau_pushbuf *push, uint64_t dst, const uint32_t *dat,
     PUSH_DATA(push, dat[i]);
   }
 }
-
-const uint32_t trivial[] = {
-  0x00017A02,0x00000A00,0x00000F00,0x000FC400,
-  0x0000794D,0x00000000,0x03800000,0x000FEA00,
-  0x00007947,0xFFFFFFF0,0x0383FFFF,0x000FC000,
-  0x00007918,0x00000000,0x00000000,0x000FC000,
-};
-
-/*
-// trivial program
-          0000                     MOV R1, c[0x0][0x28] ;                           0x00000a0000017a02   0x000fc40000000f00   
-          00e0                     EXIT ;                                           0x000000000000794d   0x000fea0003800000   
-          00f0                     BRA 0xf0;                                        0xfffffff000007947   0x000fc0000383ffff   
-          0100                     NOP;                                             0x0000000000007918   0x000fc00000000000   
-
-   0: 00017A02 00000A00 00000F00 000FC400                                                                                                                                                    
- 128: 0000794D 00000000 03800000 000FEA00                                                                                                                                                    
- 256: 00007947 FFFFFFF0 0383FFFF 000FC000                                                                                                                                                    
- 384: 00007918 00000000 00000000 000FC000 
-
-// saxpy program
-        .headerflags    @"EF_CUDA_SM86 EF_CUDA_PTX_SM(EF_CUDA_SM86)"
-          0000                     MOV R1, c[0x0][0x28] ;                           0x00000a0000017a02   0x000fc40000000f00   
-          0010                     S2R R4, SR_CTAID.X ;                             0x0000000000047919   0x000e280000002500   
-          0020                     S2R R3, SR_TID.X ;                               0x0000000000037919   0x000e240000002100   
-          0030                     IMAD R4, R4, c[0x0][0x0], R3 ;                   0x0000000004047a24   0x001fca00078e0203   
-          0040                     ISETP.GE.AND P0, PT, R4, c[0x0][0x160], PT ;     0x0000580004007a0c   0x000fda0003f06270   
-          0050                 @P0 EXIT ;                                           0x000000000000094d   0x000fea0003800000   
-          0060                     MOV R5, 0x4 ;                                    0x0000000400057802   0x000fe20000000f00   
-          0070                     ULDC.64 UR4, c[0x0][0x118] ;                     0x0000460000047ab9   0x000fc80000000a00   
-          0080                     IMAD.WIDE R2, R4, R5, c[0x0][0x168] ;            0x00005a0004027625   0x000fc800078e0205   
-          0090                     IMAD.WIDE R4, R4, R5, c[0x0][0x170] ;            0x00005c0004047625   0x000fe400078e0205   
-          00a0                     LDG.E R2, [R2.64] ;                              0x0000000402027981   0x000ea8000c1e1900   
-          00b0                     LDG.E R7, [R4.64] ;                              0x0000000404077981   0x000ea4000c1e1900   
-          00c0                     FFMA R7, R2, c[0x0][0x164], R7 ;                 0x0000590002077a23   0x004fca0000000007   
-          00d0                     STG.E [R4.64], R7 ;                              0x0000000704007986   0x000fe2000c101904   
-          00e0                     EXIT ;                                           0x000000000000794d   0x000fea0003800000   
-          00f0                     BRA 0xf0;                                        0xfffffff000007947   0x000fc0000383ffff   
-          0100                     NOP;                                             0x0000000000007918   0x000fc00000000000   
-          0110                     NOP;                                             0x0000000000007918   0x000fc00000000000   
-          0120                     NOP;                                             0x0000000000007918   0x000fc00000000000   
-          0130                     NOP;                                             0x0000000000007918   0x000fc00000000000   
-          0140                     NOP;                                             0x0000000000007918   0x000fc00000000000   
-          0150                     NOP;                                             0x0000000000007918   0x000fc00000000000   
-          0160                     NOP;                                             0x0000000000007918   0x000fc00000000000   
-          0170                     NOP;                                             0x0000000000007918   0x000fc00000000000  
-// cuobjdump out/saxpy.fatbin -sass
-   0: 00017A02 00000A00 00000F00 000FC400                                                                                                                                                     
- 128: 00047919 00000000 00002500 000E2800                                                                                                                                                     
- 256: 00037919 00000000 00002100 000E2400                                                                                                                                                     
- 384: 04047A24 00000000 078E0203 001FCA00                                                                                                                                                     
- 512: 04007A0C 00005800 03F06270 000FDA00                                                                                                                                                     
- 640: 0000094D 00000000 03800000 000FEA00                                                                                                                                                     
- 768: 00057802 00000004 00000F00 000FE200                                                                                                                                                     
- 896: 00047AB9 00004600 00000A00 000FC800                                                                                                                                                     
-1024: 04027625 00005A00 078E0205 000FC800                                                      
-1152: 04047625 00005C00 078E0205 000FE400     
-1280: 02027981 00000004 0C1E1900 000EA800     
-1408: 04077981 00000004 0C1E1900 000EA400                                                                                                                                                     
-1536: 02077A23 00005900 00000007 004FCA00 
-1664: 04007986 00000007 0C101904 000FE200 
-1792: 0000794D 00000000 03800000 000FEA00 
-1920: 00007947 FFFFFFF0 0383FFFF 000FC000 
-2048: 00007918 00000000 00000000 000FC000 
-2176: 00007918 00000000 00000000 000FC000 
-2304: 00007918 00000000 00000000 000FC000 
-2432: 00007918 00000000 00000000 000FC000 
-2560: 00007918 00000000 00000000 000FC000 
-2688: 00007918 00000000 00000000 000FC000 
-2816: 00007918 00000000 00000000 000FC000 
-2944: 00007918 00000000 00000000 000FC000 
-*/
-
-#include "out/saxpy.fatbin.c"
 
 void gpu_compute(struct nouveau_pushbuf *push, uint64_t qmd, uint64_t program_address, uint64_t constant_address, int constant_length) {
   BEGIN_NVC0(push, 1, NVC6C0_SET_INLINE_QMD_ADDRESS_A, 2);
@@ -212,24 +137,7 @@ int main(int argc, char *argv[]) {
 
   printf("**************** INIT DONE ****************\n");
 
-  // mallocs
-  /*clear_gpu_ctrl();
-  int N = 1<<20;
-  float *x, *y, *d_x, *d_y;
-  x = (float*)malloc(N*sizeof(float));
-  y = (float*)malloc(N*sizeof(float));
-  for (int i = 0; i < N; i++) { x[i] = 1.0f; y[i] = 2.0f; }
-  cuMemAlloc((CUdeviceptr*)&d_x, N*sizeof(float)); 
-  cuMemAlloc((CUdeviceptr*)&d_y, N*sizeof(float)); 
-  printf("alloced host: %p %p device: %p %p\n", x, y, d_x, d_y);
-
-  // test
-  uint8_t junk[] = {0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x88};
-  uint8_t junk_out[0x10000] = {0};
-  cuMemcpy((CUdeviceptr)d_x, (CUdeviceptr)junk, 8);*/
-
-  // *** my driver starts here
-
+  // set up command queue
   // TODO: don't hardcode addresses
   uint64_t cmdq = 0x200600000;
   struct nouveau_pushbuf push_local = {
@@ -237,12 +145,7 @@ int main(int argc, char *argv[]) {
   };
   struct nouveau_pushbuf *push = &push_local;
 
-
-  //printf("fat\n");
-  //hexdump((void*)&fatbinData[0x6D0/8], 0x1000);
-
-  //gpu_memset(push, 0x7FFFD6701000, (const uint32_t *)&fatbinData[0x6D0/8], 0x180);
-
+  // load program
   uint32_t program[0x100];
   FILE *f = fopen("out/simple.o", "rb");
   fseek(f, 0x600, SEEK_SET);
@@ -251,13 +154,8 @@ int main(int argc, char *argv[]) {
   printf("loaded program\n");
 
   uint64_t gpu_base = 0x200700000;
-  //uint64_t gpu_base = 0x7FFFD6701000;
-  //uint64_t gpu_base = 0x7FFFD6400000;
-
-  gpu_memcpy(push, gpu_base+4, (const uint32_t *)"\xbb\xaa\x00\x00\xdd\xcc\x00\x00", 8);
-  gpu_memcpy(push, gpu_base+0x1000, program, 0x180);
-  printf("memcpyed program\n");
-  //gpu_memset(push, 0x7FFFD6701000, trivial, 0x40);
+  gpu_memcpy(push, gpu_base+4, (const uint32_t*)"\xaa\xbb\xcc\xdd", 4);
+  printf("memcpyed program into gpu memory\n");
 
   struct {
     uint64_t addr;
@@ -265,38 +163,30 @@ int main(int argc, char *argv[]) {
     uint32_t value2;
   } args;
 
-  //args.addr = (uint64_t)d_x;
   args.addr = gpu_base;
   args.value1 = 0x1337-0x200;
   args.value2 = 0x1337-0x100;
-  gpu_memcpy(push, gpu_base+0x2160, (const uint32_t*)&args, 0x10);
-  //gpu_memset(push, 0x7FFFD6702028, (const uint32_t *)"\xC0\xFD\xFF\x00", 4);
 
+  // load program and args
+  gpu_memcpy(push, gpu_base+0x1000, program, 0x180);
+  gpu_memcpy(push, gpu_base+0x2160, (const uint32_t*)&args, 0x10);
+
+  // run program
   gpu_compute(push, 0x204E020, gpu_base+0x1000, gpu_base+0x2000, 0x188);
 
-  // this isn't happening if you do compute
-  gpu_dma_copy(push, gpu_base+0x10, gpu_base+4, 8);
+  // do this too
+  gpu_dma_copy(push, gpu_base+0x14, gpu_base+0, 8);
 
+  // kick off command queue
   uint64_t sz = (uint64_t)push->cur - cmdq;
   *((uint64_t*)0x2004003f0) = cmdq | (sz << 40) | 0x20000000000;
   *((uint64_t*)0x20040208c) = 0x7f;
-
   kick(0xd);
+
+  // wait for it to run
   usleep(200*1000);
 
-
-  /*dump_gpu_ctrl();
-  dump_command_buffer(0x2004003e8);
-  dump_command_buffer(0x2004003f0);*/
-
+  // dump ram to check
   printf("pc %p\n", (void*)gpu_base);
   hexdump((void*)gpu_base, 0x20);
-  /*printf("fat\n");
-  hexdump((void*)(gpu_base+0x1000), 0x180);*/
-
-  //printf("constant\n");
-  //hexdump((void*)0x7FFFD6702000, 0x200);
-  //hexdump((void*)0x7FFFD6702160, 0x20);
-
-  //dump_proc_self_maps();
 }
