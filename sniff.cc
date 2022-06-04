@@ -127,7 +127,7 @@ void *mmap64(void *addr, size_t length, int prot, int flags, int fd, off_t offse
     real = (uint32_t *)ret;
     assert(real != (void*)-1);
     realfake = (uint32_t *)mmap(NULL, length, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANON, -1, 0);
-    ret = fake = (uint32_t *)mmap(NULL, length, PROT_NONE, MAP_SHARED | MAP_ANON, -1, 0);
+    ret = fake = (uint32_t *)mmap((void*)0x13370000, length, PROT_NONE, MAP_SHARED | MAP_ANON | MAP_FIXED, -1, 0);
     printf("YOU SUNK MY BATTLESHIP: real %p    realfake: %p    fake: %p\n", real, realfake, fake);
   }
 
@@ -283,7 +283,11 @@ int ioctl(int filedes, unsigned long request, void *argp) {
           case NV2080_CTRL_CMD_PERF_BOOST: cmd_string = "NV2080_CTRL_CMD_PERF_BOOST"; break;
           case NV2080_CTRL_CMD_CE_GET_CAPS: cmd_string = "NV2080_CTRL_CMD_CE_GET_CAPS"; break;
           case NVC36F_CTRL_GET_CLASS_ENGINEID: cmd_string = "NVC36F_CTRL_GET_CLASS_ENGINEID"; break;
-          case NVC36F_CTRL_CMD_GPFIFO_GET_WORK_SUBMIT_TOKEN: cmd_string = "NVC36F_CTRL_CMD_GPFIFO_GET_WORK_SUBMIT_TOKEN"; break;
+          case NVC36F_CTRL_CMD_GPFIFO_GET_WORK_SUBMIT_TOKEN: {
+            NVC36F_CTRL_CMD_GPFIFO_GET_WORK_SUBMIT_TOKEN_PARAMS *subParams = (NVC36F_CTRL_CMD_GPFIFO_GET_WORK_SUBMIT_TOKEN_PARAMS *)p->params;
+            printf("work submit token 0x%x ", subParams->workSubmitToken);
+            cmd_string = "NVC36F_CTRL_CMD_GPFIFO_GET_WORK_SUBMIT_TOKEN"; break;
+          }
           cmd(NV906F_CTRL_GET_CLASS_ENGINEID);
           case NVA06C_CTRL_CMD_GPFIFO_SCHEDULE: cmd_string = "NVA06C_CTRL_CMD_GPFIFO_SCHEDULE"; break;
           case NVA06C_CTRL_CMD_SET_TIMESLICE: cmd_string = "NVA06C_CTRL_CMD_SET_TIMESLICE"; break;
@@ -313,11 +317,33 @@ int ioctl(int filedes, unsigned long request, void *argp) {
           cls(GT200_DEBUGGER);
         }
 
-        printf("NV_ESC_RM_ALLOC hRoot: %x hObjectParent: %x hObjectNew: %x hClass: %s(%x) pAllocParms: %p status: %x\n", p->hRoot, p->hObjectParent, p->hObjectNew,
+        printf("NV_ESC_RM_ALLOC hRoot: %x hObjectParent: %x hObjectNew: %x hClass: %s(%x) pAllocParms: %p status: 0x%x\n", p->hRoot, p->hObjectParent, p->hObjectNew,
           cls_string, p->hClass, p->pAllocParms, p->status);
         //p->pAllocParms = NULL;
         if (p->pAllocParms != NULL) {
-          hexdump(p->pAllocParms, sizeof(RS_RES_ALLOC_PARAMS_INTERNAL));
+          // open-gpu-kernel-modules/src/nvidia/src/kernel/rmapi/resource_list.h
+          if (p->hClass == KEPLER_CHANNEL_GROUP_A) {
+            NV_CHANNEL_GROUP_ALLOCATION_PARAMETERS *pAllocParams = (NV_CHANNEL_GROUP_ALLOCATION_PARAMETERS *)p->pAllocParms;
+            printf("hObjectError: %x\n", pAllocParams->hObjectError);
+            printf("hObjectEccError: %x\n", pAllocParams->hObjectEccError);
+            printf("hVASpace: %x\n", pAllocParams->hVASpace);
+            printf("engineType: %x\n", pAllocParams->engineType);
+            printf("bIsCallingContextVgpuPlugin: %d\n", pAllocParams->bIsCallingContextVgpuPlugin);
+          } else if (p->hClass == AMPERE_CHANNEL_GPFIFO_A) {
+            NV_CHANNELGPFIFO_ALLOCATION_PARAMETERS *pAllocParams = (NV_CHANNELGPFIFO_ALLOCATION_PARAMETERS *)p->pAllocParms;
+            printf("hObjectError: %x\n", pAllocParams->hObjectError);
+            printf("hObjectEccError: %x\n", pAllocParams->hObjectEccError);
+            printf("gpFifoOffset: %llx\n", pAllocParams->gpFifoOffset);
+            printf("gpFifoEntries: %x\n", pAllocParams->gpFifoEntries);
+            printf("hVASpace: %x\n", pAllocParams->hVASpace);
+            printf("hUserdMemory[0]: %x\n", pAllocParams->hUserdMemory[0]);
+            printf("userdOffset[0]: %llx\n", pAllocParams->userdOffset[0]);
+            printf("engineType: %x\n", pAllocParams->engineType);
+            printf("cid: %x\n", pAllocParams->cid);
+            printf("subDeviceId: %x\n", pAllocParams->subDeviceId);
+          } else {
+            hexdump(p->pAllocParms, 0x40);
+          }
         }
       } break;
       case NV_ESC_RM_MAP_MEMORY: {
