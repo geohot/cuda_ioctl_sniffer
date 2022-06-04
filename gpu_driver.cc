@@ -13,6 +13,7 @@
 #include "src/common/sdk/nvidia/inc/nvos.h"
 #include "src/nvidia/generated/g_allclasses.h"
 #include "src/common/sdk/nvidia/inc/class/cl2080.h"
+#include "src/common/sdk/nvidia/inc/ctrl/ctrlc36f.h"
 #include "rs.h"
 
 #include <thread>
@@ -166,6 +167,7 @@ void *mmap_object(int fd_ctl, NvHandle root, NvHandle subdevice, NvHandle usermo
 #define MY_DRIVER
 
 int main(int argc, char *argv[]) {
+  int work_submit_token = 0;
   #ifdef MY_DRIVER
     int fd_ctl = open64("/dev/nvidiactl", O_RDWR);
     NvHandle root = alloc_object(fd_ctl, NV01_ROOT_CLIENT, 0, 0, NULL);
@@ -201,13 +203,30 @@ int main(int argc, char *argv[]) {
     NvHandle channel_group = alloc_object(fd_ctl, KEPLER_CHANNEL_GROUP_A, root, device, &cgap);
 
     NV_CHANNELGPFIFO_ALLOCATION_PARAMETERS fifoap = {0};
-    fifoap.gpFifoOffset = 0x400000;
+    fifoap.gpFifoOffset = 0x200400000;
     fifoap.gpFifoEntries = 0x400;
     fifoap.hUserdMemory[0] = mem;
     fifoap.userdOffset[0] = 0x2000;
     NvHandle gpfifo = alloc_object(fd_ctl, AMPERE_CHANNEL_GPFIFO_A, root, channel_group, &fifoap);
+    NvHandle compute = alloc_object(fd_ctl, AMPERE_COMPUTE_B, root, gpfifo, NULL);
 
-    exit(0);
+    // NV_CHANNELRUNLIST_ALLOCATION_PARAMETERS
+
+    {
+      NVOS54_PARAMETERS p = {0};
+      NVC36F_CTRL_CMD_GPFIFO_GET_WORK_SUBMIT_TOKEN_PARAMS sp = {0};
+      p.cmd = NVC36F_CTRL_CMD_GPFIFO_GET_WORK_SUBMIT_TOKEN;
+      p.hClient = root;
+      p.hObject = gpfifo;
+      p.params = &sp;
+      p.paramsSize = sizeof(sp);
+      sp.workSubmitToken = -1;
+      int ret = ioctl(fd_ctl, __NV_IOWR(NV_ESC_RM_CONTROL, p), &p);
+      assert(ret == 0);
+      work_submit_token = sp.workSubmitToken;
+    }
+
+    //exit(0);
 
 
   #else
@@ -221,6 +240,7 @@ int main(int argc, char *argv[]) {
     cuDeviceGet(&pdev, 0);
     printf("**** ctx\n");
     cuCtxCreate(&pctx, 0, pdev);
+    work_submit_token = 0xd;
   #endif
 
   printf("**************** INIT DONE ****************\n");
@@ -243,9 +263,8 @@ int main(int argc, char *argv[]) {
 
   uint64_t gpu_base = 0x200500000;
   gpu_memcpy(push, gpu_base+4, (const uint32_t*)"\xaa\xbb\xcc\xdd", 4);
-  printf("memcpyed program into gpu memory\n");
 
-  struct {
+  /*struct {
     uint64_t addr;
     uint32_t value1;
     uint32_t value2;
@@ -258,18 +277,19 @@ int main(int argc, char *argv[]) {
   // load program and args
   gpu_memcpy(push, gpu_base+0x1000, program, 0x180);
   gpu_memcpy(push, gpu_base+0x2160, (const uint32_t*)&args, 0x10);
+  printf("memcpyed program into gpu memory\n");
 
   // run program
-  gpu_compute(push, 0x204E020, gpu_base+0x1000, gpu_base+0x2000, 0x188);
+  gpu_compute(push, 0x204E020, gpu_base+0x1000, gpu_base+0x2000, 0x188);*/
 
   // do this too
-  gpu_dma_copy(push, gpu_base+0x14, gpu_base+0, 8);
+  //gpu_dma_copy(push, gpu_base+0x14, gpu_base+0, 8);
 
   // kick off command queue
   uint64_t sz = (uint64_t)push->cur - cmdq;
   *((uint64_t*)0x2004003f0) = cmdq | (sz << 40) | 0x20000000000;
   *((uint64_t*)0x20040208c) = 0x7f;
-  kick(0xd);
+  kick(work_submit_token);
 
   // wait for it to run
   usleep(200*1000);

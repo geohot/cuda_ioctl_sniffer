@@ -55,6 +55,7 @@ void hook(uint64_t addr, uint64_t rdx, int start) {
   real[0x90/4] = rdx;
 }
 
+int handler_start = 0;
 static void handler(int sig, siginfo_t *si, void *unused) {
   ucontext_t *u = (ucontext_t *)unused;
   uint8_t *rip = (uint8_t*)u->uc_mcontext.gregs[REG_RIP];
@@ -75,12 +76,8 @@ static void handler(int sig, siginfo_t *si, void *unused) {
   // rdx is the offset into the command buffer GPU mapping
   if (rip[0] == 0x89 && rip[1] == 0x10) {
     rdx = u->uc_mcontext.gregs[REG_RDX];
-    start = 0xd;
   } else if (rip[0] == 0x89 && rip[1] == 0x08) {
     rdx = u->uc_mcontext.gregs[REG_RCX];
-    start = 0xd;
-    // TODO: this is wrong on z
-    //start = 0x30;
   } else {
     printf("UNKNOWN CALL ASM\n");
     hexdump(rip, 0x80);
@@ -88,9 +85,12 @@ static void handler(int sig, siginfo_t *si, void *unused) {
     exit(-1);
   }
 
+  // this is wrong, they can actually be anywhere
+  if (handler_start == 0) handler_start = rdx;
+
   uint64_t addr = (uint64_t)si->si_addr-(uint64_t)fake+(uint64_t)realfake;
   if ((addr & 0xFF) == 0x90) {
-    hook(addr, rdx, start);
+    hook(addr, rdx, handler_start);
   }
 
   u->uc_mcontext.gregs[REG_RAX] = addr;
@@ -295,7 +295,7 @@ int ioctl(int filedes, unsigned long request, void *argp) {
           default: cmd_string = "UNKNOWN"; break;
         }
         #undef cmd
-        printf("NV_ESC_RM_CONTROL client: %x object: %x cmd: %8x %s params: %p 0x%x flags: %x\n", p->hClient, p->hObject, p->cmd, cmd_string, p->params, p->paramsSize, p->flags);
+        printf("NV_ESC_RM_CONTROL client: %x object: %x cmd: %8x %s params: %p 0x%x flags: %x status 0x%x\n", p->hClient, p->hObject, p->cmd, cmd_string, p->params, p->paramsSize, p->flags, p->status);
         //hexdump(p->params, p->paramsSize);
       } break;
       case NV_ESC_RM_ALLOC: {
