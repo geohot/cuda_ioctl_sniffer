@@ -30,6 +30,7 @@
 #include "src/common/sdk/nvidia/inc/ctrl/ctrla06c.h"
 #include "src/common/sdk/nvidia/inc/ctrl/ctrla06f/ctrla06fgpfifo.h"
 #include "src/nvidia/generated/g_allclasses.h"
+#include "src/common/sdk/nvidia/inc/class/cl0080.h"
 #include "rs.h"
 
 #include <map>
@@ -97,13 +98,23 @@ static void handler(int sig, siginfo_t *si, void *unused) {
 }
 
 __attribute__((constructor)) void foo(void) {
-  printf("the sniffer is sniffing\n");
-
+  //printf("the sniffer is sniffing\n");
   struct sigaction sa;
   sa.sa_flags = SA_SIGINFO;
   sigemptyset(&sa.sa_mask);
   sa.sa_sigaction = handler;
   sigaction(SIGSEGV, &sa, NULL);
+}
+
+
+int (*my_open)(const char *pathname, int flags, mode_t mode);
+#undef open
+int open(const char *pathname, int flags, mode_t mode) {
+  if (my_open == NULL) my_open = reinterpret_cast<decltype(my_open)>(dlsym(RTLD_NEXT, "open"));
+  int ret = my_open(pathname, flags, mode);
+  printf("open %s (0o%o) = %d\n", pathname, flags, ret);
+  files[ret] = pathname;
+  return ret;
 }
 
 
@@ -158,6 +169,7 @@ int ioctl(int filedes, unsigned long request, void *argp) {
   uint16_t size = (request >> 16) & 0xFFF;
 
   if (type == NV_IOCTL_MAGIC) {
+    if (getenv("EXIT_IOCTL") && atoi(getenv("EXIT_IOCTL")) == ioctl_num) exit(0);
     char *block_ioctl = getenv("BLOCK_IOCTL");
     bool should_block = false;
     if (block_ioctl) {
@@ -329,18 +341,47 @@ int ioctl(int filedes, unsigned long request, void *argp) {
             printf("hVASpace: %x\n", pAllocParams->hVASpace);
             printf("engineType: %x\n", pAllocParams->engineType);
             printf("bIsCallingContextVgpuPlugin: %d\n", pAllocParams->bIsCallingContextVgpuPlugin);
+          } else if (p->hClass == FERMI_CONTEXT_SHARE_A) {
+            NV_CTXSHARE_ALLOCATION_PARAMETERS *pAllocParams = (NV_CTXSHARE_ALLOCATION_PARAMETERS *)p->pAllocParms;
+            printf("hVASpace: %x\n", pAllocParams->hVASpace);
+            printf("flags: %x\n", pAllocParams->flags);
+            printf("subctxId: %x\n", pAllocParams->subctxId);
+          } else if (p->hClass == FERMI_VASPACE_A) {
+            NV_VASPACE_ALLOCATION_PARAMETERS *pAllocParams = (NV_VASPACE_ALLOCATION_PARAMETERS *)p->pAllocParms;
+            printf("index: %x\n", pAllocParams->index);
+            printf("flags: %x\n", pAllocParams->flags);
+            printf("vaSize: %llx\n", pAllocParams->vaSize);
+            printf("vaStartInternal: %llx\n", pAllocParams->vaStartInternal);
+            printf("vaLimitInternal: %llx\n", pAllocParams->vaLimitInternal);
+            printf("bigPageSize: %x\n", pAllocParams->bigPageSize);
+            printf("vaBase: %llx\n", pAllocParams->vaBase);
+          } else if (p->hClass == NV01_DEVICE_0) {
+            NV0080_ALLOC_PARAMETERS *pAllocParams = (NV0080_ALLOC_PARAMETERS *)p->pAllocParms;
+            printf("deviceId: %x\n", pAllocParams->deviceId);
+            printf("hClientShare: %x\n", pAllocParams->hClientShare);
+            printf("hTargetClient: %x\n", pAllocParams->hTargetClient);
+            printf("hTargetDevice: %x\n", pAllocParams->hTargetDevice);
+            printf("flags: %x\n", pAllocParams->flags);
+            printf("vaSpaceSize: %x\n", pAllocParams->vaSpaceSize);
+            printf("vaStartInternal: %llx\n", pAllocParams->vaStartInternal);
+            printf("vaLimitInternal: %llx\n", pAllocParams->vaLimitInternal);
+            printf("vaMode: %x\n", pAllocParams->vaMode);
           } else if (p->hClass == AMPERE_CHANNEL_GPFIFO_A) {
             NV_CHANNELGPFIFO_ALLOCATION_PARAMETERS *pAllocParams = (NV_CHANNELGPFIFO_ALLOCATION_PARAMETERS *)p->pAllocParms;
             printf("hObjectError: %x\n", pAllocParams->hObjectError);
-            printf("hObjectEccError: %x\n", pAllocParams->hObjectEccError);
+            printf("hObjectBuffer: %x\n", pAllocParams->hObjectBuffer);
             printf("gpFifoOffset: %llx\n", pAllocParams->gpFifoOffset);
             printf("gpFifoEntries: %x\n", pAllocParams->gpFifoEntries);
+            printf("flags: %x\n", pAllocParams->flags);
             printf("hVASpace: %x\n", pAllocParams->hVASpace);
             printf("hUserdMemory[0]: %x\n", pAllocParams->hUserdMemory[0]);
             printf("userdOffset[0]: %llx\n", pAllocParams->userdOffset[0]);
+            printf("hUserdMemory[1]: %x\n", pAllocParams->hUserdMemory[1]);
+            printf("userdOffset[1]: %llx\n", pAllocParams->userdOffset[1]);
             printf("engineType: %x\n", pAllocParams->engineType);
             printf("cid: %x\n", pAllocParams->cid);
             printf("subDeviceId: %x\n", pAllocParams->subDeviceId);
+            printf("hObjectEccError: %x\n", pAllocParams->hObjectEccError);
           } else {
             hexdump(p->pAllocParms, 0x40);
           }
@@ -378,9 +419,15 @@ int ioctl(int filedes, unsigned long request, void *argp) {
         printf("UNKNOWN %lx\n", request);
         break;
     }
+    //usleep(100*1000); system("sudo dmesg -c");
   } else {
     // non nvidia ioctl
-    ret = my_ioctl(filedes, request, argp);
+    printf("non nvidia ioctl %d %s 0x%x %p\n", filedes, files[filedes].c_str(), request, argp);
+    if (strcmp(files[filedes].c_str(), "/dev/nvidia-uvm") == 0) {
+      printf("UVM BULLSHIT BLOCKED\n");
+    } else {
+      ret = my_ioctl(filedes, request, argp);
+    }
   }
 
   return ret;

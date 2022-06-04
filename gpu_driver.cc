@@ -13,6 +13,7 @@
 #include "src/common/sdk/nvidia/inc/nvos.h"
 #include "src/nvidia/generated/g_allclasses.h"
 #include "src/common/sdk/nvidia/inc/class/cl2080.h"
+#include "src/common/sdk/nvidia/inc/class/cl0080.h"
 #include "src/common/sdk/nvidia/inc/ctrl/ctrlc36f.h"
 #include "rs.h"
 
@@ -143,7 +144,7 @@ NvHandle alloc_object(int fd_ctl, NvV32 hClass, NvHandle root, NvHandle parent, 
   return p.hObjectNew;
 }
 
-void *mmap_object(int fd_ctl, NvHandle root, NvHandle subdevice, NvHandle usermode, void *pLinearAddress, int length, void *target) {
+void *mmap_object(int fd_ctl, NvHandle root, NvHandle subdevice, NvHandle usermode, void *pLinearAddress, int length, void *target, int flags) {
   int fd_dev0 = open64("/dev/nvidia0", O_RDWR | O_CLOEXEC);
   {
     nv_ioctl_nvos33_parameters_with_fd p = {0};
@@ -152,7 +153,7 @@ void *mmap_object(int fd_ctl, NvHandle root, NvHandle subdevice, NvHandle usermo
     p.params.hMemory = usermode;
     p.params.pLinearAddress = pLinearAddress;
     p.params.length = length;
-    p.params.flags = 2;
+    p.params.flags = flags;
     p.fd = fd_dev0;
     int ret = ioctl(fd_ctl, __NV_IOWR(NV_ESC_RM_MAP_MEMORY, p), &p);
     assert(ret == 0);
@@ -160,23 +161,30 @@ void *mmap_object(int fd_ctl, NvHandle root, NvHandle subdevice, NvHandle usermo
   return mmap64(target, length, PROT_READ|PROT_WRITE, MAP_SHARED | (target != NULL ? MAP_FIXED : 0), fd_dev0, 0);
 }
 
-// BLOCK_IOCTL=11,12,13,15,16,17,19,20,21,23 ./driver.sh 
-// BLOCK_IOCTL=53,54,55,56,57,58,59 ./driver.sh
-// BLOCK_IOCTL=71,72,73,74,75,76,77,78,79,80,81,82 ./driver.sh 
-
-#define MY_DRIVER
+// NVDRIVER=1 EXIT_IOCTL=94 BLOCK_IOCTL=11,12,78,85,73,82,16,20,30,13,15,17,19,35,71 ./driver.sh 
 
 int main(int argc, char *argv[]) {
   int work_submit_token = 0;
-  #ifdef MY_DRIVER
+  if (!getenv("NVDRIVER")) {
     int fd_ctl = open64("/dev/nvidiactl", O_RDWR);
     NvHandle root = alloc_object(fd_ctl, NV01_ROOT_CLIENT, 0, 0, NULL);
+    //int fd_uvm = open64("/dev/nvidia-uvm", O_RDWR);
+
     int fd_dev0 = open64("/dev/nvidia0", O_RDWR | O_CLOEXEC);
-    NvHandle device = alloc_object(fd_ctl, NV01_DEVICE_0, root, root, NULL);
-    NvHandle subdevice = alloc_object(fd_ctl, NV20_SUBDEVICE_0, root, device, NULL);
+    NV0080_ALLOC_PARAMETERS ap0080 = {0};
+    ap0080.hClientShare = root;
+    ap0080.vaMode = 2;
+    NvHandle device = alloc_object(fd_ctl, NV01_DEVICE_0, root, root, &ap0080);
+    int fd_dev1 = open64("/dev/nvidia0", O_RDWR | O_CLOEXEC);
+    NV2080_ALLOC_PARAMETERS ap2080 = {0};
+    NvHandle subdevice = alloc_object(fd_ctl, NV20_SUBDEVICE_0, root, device, &ap2080);
     NvHandle usermode = alloc_object(fd_ctl, TURING_USERMODE_A, root, subdevice, NULL);
-    void *gpu_mmio_ptr = mmap_object(fd_ctl, root, subdevice, usermode, (void*)0xfbbb0000, 0x10000, NULL);
+    void *gpu_mmio_ptr = mmap_object(fd_ctl, root, subdevice, usermode, (void*)0xfbbb0000, 0x10000, NULL, 2);
     assert(gpu_mmio_ptr == (void *)0x13370000);
+
+    // UVM_REGISTER_GPU
+    // UVM_CREATE_RANGE_GROUP
+
 
     NvHandle mem;
     {
@@ -186,29 +194,61 @@ int main(int argc, char *argv[]) {
       p.hObjectParent = device;
       p.function = NVOS32_FUNCTION_ALLOC_SIZE;
       asz->owner = root;
-      asz->flags = 0x1c101;
+      //asz->flags = 0x1c101;
+      asz->flags = NVOS32_ALLOC_FLAGS_IGNORE_BANK_PLACEMENT | NVOS32_ALLOC_FLAGS_ALIGNMENT_FORCE | NVOS32_ALLOC_FLAGS_MEMORY_HANDLE_PROVIDED |
+        NVOS32_ALLOC_FLAGS_MAP_NOT_REQUIRED | NVOS32_ALLOC_FLAGS_PERSISTENT_VIDMEM;
       asz->size = 0x200000;
       int ret = ioctl(fd_ctl, __NV_IOWR(NV_ESC_RM_VID_HEAP_CONTROL, p), &p);
       mem = asz->hMemory;
     }
-    void *local_ptr = mmap_object(fd_ctl, root, subdevice, mem, (void*)0xd2580000, 0x200000, (void*)0x200400000);
+    void *local_ptr = mmap_object(fd_ctl, root, subdevice, mem, (void*)0xd2580000, 0x200000, (void*)0x200400000, 0xc0000);
     assert(local_ptr == (void *)0x200400000);
 
     NV_VASPACE_ALLOCATION_PARAMETERS vap = {0};
+    vap.flags = NV_VASPACE_ALLOCATION_FLAGS_ENABLE_PAGE_FAULTING | NV_VASPACE_ALLOCATION_FLAGS_IS_EXTERNALLY_OWNED;
+    vap.vaBase = 0x1000;
     NvHandle vaspace = alloc_object(fd_ctl, FERMI_VASPACE_A, root, device, &vap);
 
     NV_CHANNEL_GROUP_ALLOCATION_PARAMETERS cgap = {0};
     cgap.engineType = NV2080_ENGINE_TYPE_GRAPHICS;
-    cgap.hVASpace = vaspace;
+    //cgap.hVASpace = vaspace;
     NvHandle channel_group = alloc_object(fd_ctl, KEPLER_CHANNEL_GROUP_A, root, device, &cgap);
+    exit(0);
+
+    NV_CTXSHARE_ALLOCATION_PARAMETERS cap = {0};
+    //cap.hVASpace = vaspace;
+    cap.flags = 1;
+    cap.subctxId = 0x3f;
+    NvHandle share = alloc_object(fd_ctl, FERMI_CONTEXT_SHARE_A, root, channel_group, &cap);
+
+
+    NvHandle mem_error;
+    {
+      NVOS32_PARAMETERS p = {0};
+      auto asz = &p.data.AllocSize;
+      p.hRoot = root;
+      p.hObjectParent = device;
+      p.function = NVOS32_FUNCTION_ALLOC_SIZE;
+      asz->owner = root;
+      asz->flags = 0x1c101;
+      asz->size = 0x1000;
+      int ret = ioctl(fd_ctl, __NV_IOWR(NV_ESC_RM_VID_HEAP_CONTROL, p), &p);
+      mem_error = asz->hMemory;
+    }
+    void *local_err_ptr = mmap_object(fd_ctl, root, subdevice, mem_error, (void*)0, 0x1000, (void*)0x200800000, 0xc0000);
+    assert(local_err_ptr == (void *)0x200800000);
+    memset(local_err_ptr, 0, 0x1000);
 
     NV_CHANNELGPFIFO_ALLOCATION_PARAMETERS fifoap = {0};
+    fifoap.hObjectError = mem_error; // wrong
+    fifoap.hObjectBuffer = mem;
     fifoap.gpFifoOffset = 0x200400000;
     fifoap.gpFifoEntries = 0x400;
     fifoap.hUserdMemory[0] = mem;
     fifoap.userdOffset[0] = 0x2000;
     NvHandle gpfifo = alloc_object(fd_ctl, AMPERE_CHANNEL_GPFIFO_A, root, channel_group, &fifoap);
     NvHandle compute = alloc_object(fd_ctl, AMPERE_COMPUTE_B, root, gpfifo, NULL);
+    NvHandle dmacopy = alloc_object(fd_ctl, AMPERE_DMA_COPY_B, root, gpfifo, NULL);
 
     // NV_CHANNELRUNLIST_ALLOCATION_PARAMETERS
 
@@ -227,9 +267,11 @@ int main(int argc, char *argv[]) {
     }
 
     //exit(0);
-
-
-  #else
+    #ifdef MY_DRIVER
+      printf("error %p\n", (void*)local_err_ptr);
+      hexdump((void*)local_err_ptr, 0x40);
+    #endif
+  } else {
     // our GPU driver doesn't support init. use CUDA
     // TODO: remove linking to CUDA
     CUdevice pdev;
@@ -240,8 +282,9 @@ int main(int argc, char *argv[]) {
     cuDeviceGet(&pdev, 0);
     printf("**** ctx\n");
     cuCtxCreate(&pctx, 0, pdev);
+    exit(0);
     work_submit_token = 0xd;
-  #endif
+  }
 
   printf("**************** INIT DONE ****************\n");
 
