@@ -3,6 +3,8 @@
 #include "nouveau.h"
 
 //#include "src/nvidia/inc/libraries/containers/type_safety.h"
+#include "kernel-open/nvidia-uvm/uvm_linux_ioctl.h"
+#include "kernel-open/nvidia-uvm/uvm_ioctl.h"
 
 #define NV_PLATFORM_MAX_IOCTL_SIZE 0xFFF
 #include "src/common/sdk/nvidia/inc/ctrl/ctrl0000/ctrl0000gpu.h"
@@ -170,7 +172,21 @@ int main(int argc, char *argv[]) {
   if (!getenv("NVDRIVER")) {
     int fd_ctl = open64("/dev/nvidiactl", O_RDWR);
     NvHandle root = alloc_object(fd_ctl, NV01_ROOT_CLIENT, 0, 0, NULL);
-    //int fd_uvm = open64("/dev/nvidia-uvm", O_RDWR);
+    int fd_uvm = open64("/dev/nvidia-uvm", O_RDWR);
+    {
+      UVM_INITIALIZE_PARAMS p = {0};
+      int ret = ioctl(fd_uvm, UVM_INITIALIZE, &p);
+      assert(ret == 0);
+    }
+    {
+      UVM_REGISTER_GPU_PARAMS p = {0};
+      // TODO: where do numbers come from?
+      memcpy(&p.gpu_uuid.uuid, "\xb4\xe9\x43\xc6\xdc\xb5\x96\x92", 8);
+      p.rmCtrlFd = 0xffffffff;
+      int ret = ioctl(fd_uvm, UVM_REGISTER_GPU, &p);
+      assert(ret == 0);
+    }
+
 
     int fd_dev0 = open64("/dev/nvidia0", O_RDWR | O_CLOEXEC);
     NV0080_ALLOC_PARAMETERS ap0080 = {0};

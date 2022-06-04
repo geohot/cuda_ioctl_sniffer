@@ -12,6 +12,8 @@
 #include "helpers.h"
 
 #define NV_LINUX
+#include "kernel-open/nvidia-uvm/uvm_linux_ioctl.h"
+#include "kernel-open/nvidia-uvm/uvm_ioctl.h"
 #include "kernel-open/common/inc/nv-ioctl.h"
 #include "kernel-open/common/inc/nv-ioctl-numbers.h"
 #define NV_ESC_NUMA_INFO         (NV_IOCTL_BASE + 15)
@@ -419,13 +421,57 @@ int ioctl(int filedes, unsigned long request, void *argp) {
         printf("UNKNOWN %lx\n", request);
         break;
     }
-    usleep(50*1000); system("sudo dmesg -c");
+    //usleep(50*1000); system("sudo dmesg -c");
   } else {
     // non nvidia ioctl
     printf("non nvidia ioctl %d %s 0x%x %p\n", filedes, files[filedes].c_str(), request, argp);
     if (strcmp(files[filedes].c_str(), "/dev/nvidia-uvm") == 0) {
       //printf("UVM BULLSHIT BLOCKED\n");
       ret = my_ioctl(filedes, request, argp);
+      switch (request) {
+        case UVM_INITIALIZE: {
+          UVM_INITIALIZE_PARAMS *p = (UVM_INITIALIZE_PARAMS *)argp;
+          printf("UVM_INITIALIZE: flags:%x rmStatus:%x\n", p->flags, p->rmStatus);
+          break;
+        }
+        case UVM_PAGEABLE_MEM_ACCESS: {
+          UVM_PAGEABLE_MEM_ACCESS_PARAMS *p = (UVM_PAGEABLE_MEM_ACCESS_PARAMS *)argp;
+          printf("UVM_PAGEABLE_MEM_ACCESS_PARAMS pageableMemAccess:%x rmStatus:%x\n", p->pageableMemAccess, p->rmStatus);
+          break;
+        }
+        case UVM_REGISTER_GPU: {
+          UVM_REGISTER_GPU_PARAMS *p = (UVM_REGISTER_GPU_PARAMS *)argp;
+          printf("UVM_REGISTER_GPU gpu_uuid:%x %x %x %x %x %x %x %x rmCtrlFd:%x hClient:%x hSmcPartRef:%x\n",
+            p->gpu_uuid.uuid[0], p->gpu_uuid.uuid[1], p->gpu_uuid.uuid[2], p->gpu_uuid.uuid[3],
+            p->gpu_uuid.uuid[4], p->gpu_uuid.uuid[5], p->gpu_uuid.uuid[6], p->gpu_uuid.uuid[7],
+            p->rmCtrlFd, p->hClient, p->hSmcPartRef);
+          break;
+        }
+        case UVM_CREATE_RANGE_GROUP: {
+          UVM_CREATE_RANGE_GROUP_PARAMS *p = (UVM_CREATE_RANGE_GROUP_PARAMS *)argp;
+          printf("UVM_CREATE_RANGE_GROUP rangeGroupId: %llx rmStatus: %x\n", p->rangeGroupId, p->rmStatus);
+          break;
+        }
+        case UVM_MAP_EXTERNAL_ALLOCATION: {
+          UVM_MAP_EXTERNAL_ALLOCATION_PARAMS *p = (UVM_MAP_EXTERNAL_ALLOCATION_PARAMS *)argp;
+          printf("UVM_MAP_EXTERNAL_ALLOCATION base:%llx length:%llx\n", p->base, p->length);
+          break;
+        }
+        case UVM_REGISTER_GPU_VASPACE: {
+          UVM_REGISTER_GPU_VASPACE_PARAMS *p = (UVM_REGISTER_GPU_VASPACE_PARAMS *)argp;
+          printf("UVM_REGISTER_GPU_VASPACE_PARAMS gpu_uuid:%x rmCtrlFd:%x hClient:%x hVaSpace:%x rmStatus:%x\n", p->gpuUuid, p->rmCtrlFd, p->hClient, p->hVaSpace, p->rmStatus);
+          break;
+        }
+        case UVM_CREATE_EXTERNAL_RANGE: {
+          UVM_CREATE_EXTERNAL_RANGE_PARAMS *p = (UVM_CREATE_EXTERNAL_RANGE_PARAMS *)argp;
+          printf("UVM_CREATE_EXTERNAL_RANGE base:%llx length:%llx\n", p->base, p->length);
+          break;
+        }
+        default: {
+          printf("UNPARSED UVM IOCTL 0x%x %d\n", request, request);
+          break;
+        }
+      }
     } else {
       ret = my_ioctl(filedes, request, argp);
     }
