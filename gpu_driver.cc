@@ -150,6 +150,23 @@ NvHandle alloc_object(int fd_ctl, NvV32 hClass, NvHandle root, NvHandle parent, 
   return p.hObjectNew;
 }
 
+void *mmap_object(int fd_ctl, NvHandle root, NvHandle subdevice, NvHandle usermode, void *pLinearAddress, int length, void *target) {
+  int fd_dev0 = open64("/dev/nvidia0", O_RDWR | O_CLOEXEC);
+  {
+    nv_ioctl_nvos33_parameters_with_fd p = {0};
+    p.params.hClient = root;
+    p.params.hDevice = subdevice;
+    p.params.hMemory = usermode;
+    p.params.pLinearAddress = pLinearAddress;
+    p.params.length = length;
+    p.params.flags = 2;
+    p.fd = fd_dev0;
+    int ret = ioctl(fd_ctl, __NV_IOWR(NV_ESC_RM_MAP_MEMORY, p), &p);
+    assert(ret == 0);
+  }
+  return mmap64(target, length, PROT_READ|PROT_WRITE | (target != NULL ? MAP_FIXED : 0), 1, fd_dev0, 0);
+}
+
 // BLOCK_IOCTL=11,12,13,15,16,17,19,20,21,23 ./driver.sh 
 // BLOCK_IOCTL=53,54,55,56,57,58,59 ./driver.sh
 // BLOCK_IOCTL=71,72,73,74,75,76,77,78,79,80,81,82 ./driver.sh 
@@ -187,30 +204,25 @@ int main(int argc, char *argv[]) {
   NvHandle device = alloc_object(fd_ctl, NV01_DEVICE_0, root, root, false);
   NvHandle subdevice = alloc_object(fd_ctl, NV20_SUBDEVICE_0, root, device, false);
   NvHandle usermode = alloc_object(fd_ctl, TURING_USERMODE_A, root, subdevice, false);
+  void *gpu_mmio_ptr = mmap_object(fd_ctl, root, subdevice, usermode, (void*)0xfbbb0000, 0x10000, NULL);
 
-  //fd_dev0 = open64("/dev/nvidia0", O_RDWR | O_CLOEXEC);
+  NvHandle mem;
   {
-    nv_ioctl_nvos33_parameters_with_fd p = {0};
-    p.params.hClient = root;
-    p.params.hDevice = subdevice;
-    p.params.hMemory = usermode;
-    /*p.hClient = 0xc1d018a3;
-    p.hDevice = 0x5c000002;
-    p.hMemory = 0x5c000003;*/
-    p.params.pLinearAddress = (void*)0xfbbb0000;
-    p.params.length = 0x10000;
-    p.params.flags = 2;
-    p.fd = fd_dev0;
-    int ret = ioctl(fd_ctl, __NV_IOWR(NV_ESC_RM_MAP_MEMORY, p), &p);
-    assert(ret == 0);
+    NVOS32_PARAMETERS p = {0};
+    auto asz = &p.data.AllocSize;
+    p.hRoot = root;
+    p.hObjectParent = device;
+    p.function = NVOS32_FUNCTION_ALLOC_SIZE;
+    asz->owner = root;
+    asz->flags = 0x1c101;
+    asz->size = 0x200000;
+    asz->offset = 0xfc00000;
+    int ret = ioctl(fd_ctl, __NV_IOWR(NV_ESC_RM_VID_HEAP_CONTROL, p), &p);
+    mem = asz->hMemory;
   }
-  //void *gpu_mmio_ptr = mmap64(NULL, 0x10000, PROT_WRITE, 1, fd_dev0, 0);
+  void *local_ptr = mmap_object(fd_ctl, root, subdevice, mem, (void*)0xd2580000, 0x200000, (void*)0x200400000);
 
-  /*{
-    NVOS32_PARAMETERS p;
-    int ret = ioctl(fd_ctl, __NV_IOWR(NV_ESC_RM_MAP_MEMORY, p), &p);
-  }*/
-  //exit(0);
+  /*exit(0);
 
 
   // our GPU driver doesn't support init. use CUDA
@@ -222,7 +234,7 @@ int main(int argc, char *argv[]) {
   printf("**** device\n");
   cuDeviceGet(&pdev, 0);
   printf("**** ctx\n");
-  cuCtxCreate(&pctx, 0, pdev);
+  cuCtxCreate(&pctx, 0, pdev);*/
 
   printf("**************** INIT DONE ****************\n");
 

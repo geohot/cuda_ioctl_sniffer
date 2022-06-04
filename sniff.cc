@@ -328,10 +328,13 @@ int ioctl(int filedes, unsigned long request, void *argp) {
       } break;
       case NV_ESC_RM_UPDATE_DEVICE_MAPPING_INFO: printf("NV_ESC_RM_UPDATE_DEVICE_MAPPING_INFO\n"); break;
       case NV_ESC_RM_VID_HEAP_CONTROL: {
-        NVOS32_PARAMETERS *pApi = (NVOS32_PARAMETERS *)argp;
-        printf("NV_ESC_RM_VID_HEAP_CONTROL %x\n", pApi->function);
-        auto asz = pApi->data.AllocSize;
-        if (pApi->function == NVOS32_FUNCTION_ALLOC_SIZE) {
+        NVOS32_PARAMETERS *p = (NVOS32_PARAMETERS *)argp;
+        printf("NV_ESC_RM_VID_HEAP_CONTROL %x\n", p->function);
+        printf("    hRoot:   %x\n", p->hRoot);
+        printf("    hObjectParent:   %x\n", p->hObjectParent);
+        printf("    hVASpace:   %x\n", p->hVASpace);
+        auto asz = p->data.AllocSize;
+        if (p->function == NVOS32_FUNCTION_ALLOC_SIZE) {
           printf("    owner:   %x\n", asz.owner);
           printf("  hMemory:   %x\n", asz.hMemory);
           printf("     type:   %d\n", asz.type);
