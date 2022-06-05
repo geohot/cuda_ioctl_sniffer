@@ -253,6 +253,17 @@ NvHandle heap_alloc(int fd_ctl, int fd_uvm, NvHandle root, NvHandle device, NvHa
   return mem;
 }
 
+void rm_control(int fd_ctl, int cmd, NvHandle client, NvHandle object, void *params, int paramsize) {
+  NVOS54_PARAMETERS p = {0};
+  p.cmd = cmd;
+  p.hClient = client;
+  p.hObject = object;
+  p.params = params;
+  p.paramsSize = paramsize;
+  int ret = ioctl(fd_ctl, __NV_IOWR(NV_ESC_RM_CONTROL, p), &p);
+  assert(ret == 0);
+}
+
 // BLOCK_IOCTL=79,80,84,98,11,12,78,85,73,82,16,20,30,13,15,17,19,35,71 EXIT_IOCTL=106 NVDRIVER=1 ./driver.sh 
 
 int main(int argc, char *argv[]) {
@@ -301,11 +312,11 @@ int main(int argc, char *argv[]) {
       int ret = ioctl(fd_uvm, UVM_REGISTER_GPU, &p);
       assert(ret == 0);
     }
-    {
+    /*{
       UVM_CREATE_RANGE_GROUP_PARAMS p = {0};
       int ret = ioctl(fd_uvm, UVM_CREATE_RANGE_GROUP, &p);
       assert(ret == 0);
-    }
+    }*/
     {
       UVM_REGISTER_GPU_VASPACE_PARAMS p = {0};
       memcpy(&p.gpuUuid.uuid, GPU_UUID, 0x10);
@@ -316,10 +327,10 @@ int main(int argc, char *argv[]) {
       assert(ret == 0);
     }
 
-    NvHandle mem2 = heap_alloc(fd_ctl, fd_uvm, root, device, subdevice, (void *)0x200200000, 0x200000, NVOS32_ALLOC_FLAGS_IGNORE_BANK_PLACEMENT | NVOS32_ALLOC_FLAGS_ALIGNMENT_FORCE | NVOS32_ALLOC_FLAGS_MEMORY_HANDLE_PROVIDED | NVOS32_ALLOC_FLAGS_MAP_NOT_REQUIRED | NVOS32_ALLOC_FLAGS_PERSISTENT_VIDMEM, 0xc0000, 0);
-    NvHandle mem = heap_alloc(fd_ctl, fd_uvm, root, device, subdevice, (void *)0x200400000, 0x200000, NVOS32_ALLOC_FLAGS_IGNORE_BANK_PLACEMENT | NVOS32_ALLOC_FLAGS_ALIGNMENT_FORCE | NVOS32_ALLOC_FLAGS_MEMORY_HANDLE_PROVIDED | NVOS32_ALLOC_FLAGS_MAP_NOT_REQUIRED | NVOS32_ALLOC_FLAGS_PERSISTENT_VIDMEM, 0xc0000, 0);
-    // what is type 13?
-    NvHandle mem_error_handle = heap_alloc(fd_ctl, fd_uvm, root, device, subdevice, mem_error, 0x1000, 0xc001, 0, 13);
+    NvHandle mem = heap_alloc(fd_ctl, fd_uvm, root, device, subdevice, (void *)0x200400000, 0x200000,
+      NVOS32_ALLOC_FLAGS_IGNORE_BANK_PLACEMENT | NVOS32_ALLOC_FLAGS_ALIGNMENT_FORCE | NVOS32_ALLOC_FLAGS_MEMORY_HANDLE_PROVIDED | NVOS32_ALLOC_FLAGS_MAP_NOT_REQUIRED | NVOS32_ALLOC_FLAGS_PERSISTENT_VIDMEM,
+      0xc0000, NVOS32_TYPE_IMAGE);
+    NvHandle mem_error_handle = heap_alloc(fd_ctl, fd_uvm, root, device, subdevice, mem_error, 0x1000, 0xc001, 0, NVOS32_TYPE_NOTIFIER);
 
     NV_CHANNEL_GROUP_ALLOCATION_PARAMETERS cgap = {0};
     cgap.engineType = NV2080_ENGINE_TYPE_GRAPHICS;
@@ -342,30 +353,19 @@ int main(int argc, char *argv[]) {
     fifoap.hUserdMemory[0] = mem;
     fifoap.userdOffset[0] = 0x2000;
     NvHandle gpfifo = alloc_object(fd_ctl, AMPERE_CHANNEL_GPFIFO_A, root, channel_group, &fifoap);
-
-    //hexdump((void*)0x200800000, 0x40);
-    //exit(0);
-
     NvHandle compute = alloc_object(fd_ctl, AMPERE_COMPUTE_B, root, gpfifo, NULL);
-    NvHandle dmacopy = alloc_object(fd_ctl, AMPERE_DMA_COPY_B, root, gpfifo, NULL);
+    // NOTE: dma copy works without this
+    //NvHandle dmacopy = alloc_object(fd_ctl, AMPERE_DMA_COPY_B, root, gpfifo, NULL);
 
-    // NV_CHANNELRUNLIST_ALLOCATION_PARAMETERS
-
+    // this is the value you write to the doorbell register
     {
-      NVOS54_PARAMETERS p = {0};
       NVC36F_CTRL_CMD_GPFIFO_GET_WORK_SUBMIT_TOKEN_PARAMS sp = {0};
-      p.cmd = NVC36F_CTRL_CMD_GPFIFO_GET_WORK_SUBMIT_TOKEN;
-      p.hClient = root;
-      p.hObject = gpfifo;
-      p.params = &sp;
-      p.paramsSize = sizeof(sp);
       sp.workSubmitToken = -1;
-      int ret = ioctl(fd_ctl, __NV_IOWR(NV_ESC_RM_CONTROL, p), &p);
-      assert(ret == 0);
+      rm_control(fd_ctl, NVC36F_CTRL_CMD_GPFIFO_GET_WORK_SUBMIT_TOKEN, root, gpfifo, &sp, sizeof(sp));
       work_submit_token = sp.workSubmitToken;
     }
 
-    //system("sudo dmesg -c > /dev/null");
+    // register the FIFO with UVM
     {
       UVM_REGISTER_CHANNEL_PARAMS p = {0};
       memcpy(&p.gpuUuid.uuid, GPU_UUID, 0x10);
@@ -373,30 +373,18 @@ int main(int argc, char *argv[]) {
       p.hClient = root;
       p.hChannel = gpfifo;
       // TODO: is this right?
-      //p.base = 0x200400000;
-      //p.length = 0x200000;
       p.base = 0x203600000;
       p.length = 0xf6e000;
       int ret = ioctl(fd_uvm, UVM_REGISTER_CHANNEL, &p);
       assert(ret == 0);
     }
 
+    // enable the FIFO
     {
-      NVOS54_PARAMETERS p = {0};
       NVA06C_CTRL_GPFIFO_SCHEDULE_PARAMS sp = {0};
-      p.cmd = NVA06C_CTRL_CMD_GPFIFO_SCHEDULE;
-      p.hClient = root;
-      p.hObject = channel_group;
-      p.params = &sp;
-      p.paramsSize = sizeof(sp);
       sp.bEnable = true;
-      int ret = ioctl(fd_ctl, __NV_IOWR(NV_ESC_RM_CONTROL, p), &p);
-      assert(ret == 0);
+      rm_control(fd_ctl, NVA06C_CTRL_CMD_GPFIFO_SCHEDULE, root, channel_group, &sp, sizeof(sp));
     }
-
-    /*usleep(100*1000);
-    system("dmesg");
-    exit(0);*/
 
   } else {
     // our GPU driver doesn't support init. use CUDA
