@@ -167,8 +167,11 @@ void kick(volatile uint32_t *doorbell, int cb_index) {
 }
 
 uint64_t trivial[] = {
-  0x000000000000794d, 0x000fea0003800000,
-  0xfffffff000007947, 0x000fc0000383ffff
+  0x00005a00ff057624, 0x000fe200078e00ff,  // IMAD.MOV.U32 R5, RZ, RZ, c[0x0][0x168]
+  0x0000580000027a02, 0x000fe20000000f00,  // MOV R2, c[0x0][0x160]
+  0x0000590000037a02, 0x000fca0000000f00,  // MOV R3, c[0x0][0x164]
+  0x0000000502007986, 0x000fe2000c101904,  // STG.E [R2.64], R5
+  0x000000000000794d, 0x000fea0003800000,  // EXIT
 };
 
 #define GPU_UUID "\xb4\xe9\x43\xc6\xdc\xb5\x96\x92\x6d\xb1\x04\x69\x18\x65\x8d\x08"
@@ -268,7 +271,8 @@ int main(int argc, char *argv[]) {
     cuDeviceGet(&pdev, 0);
     printf("**** ctx\n");
     cuCtxCreate(&pctx, 0, pdev);
-    work_submit_token = 0xd;
+    // NOTE: this can be wrong
+    work_submit_token = 5;
 #endif
   }
 
@@ -283,12 +287,16 @@ int main(int argc, char *argv[]) {
 
   // load program
   uint32_t program[0x100];
-  FILE *f = fopen("out/simple.o", "rb");
-  fseek(f, 0x600, SEEK_SET);
-  fread(program, 1, 0x180, f);
-  fclose(f);
-  //memcpy(program, trivial, sizeof(trivial));
-  printf("loaded program\n");
+  if (getenv("TRIVIAL")) {
+    printf("running trivial program\n");
+    memcpy(program, trivial, sizeof(trivial));
+  } else {
+    FILE *f = fopen("out/simple.o", "rb");
+    fseek(f, 0x600, SEEK_SET);
+    fread(program, 1, 0x180, f);
+    fclose(f);
+    printf("loaded program\n");
+  }
 
   gpu_setup(push);
   gpu_memcpy(push, gpu_base+4, (const uint32_t*)"\xaa\xbb\xcc\xdd", 4);
@@ -338,5 +346,5 @@ int main(int argc, char *argv[]) {
   // ROBUST_CHANNEL_GR_CLASS_ERROR = 0x45
   hexdump((void*)mem_error, 0x40);
 
-  //while(1) sleep(1);
+  if (getenv("HANG")) { while(1) sleep(1); }
 }

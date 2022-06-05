@@ -164,7 +164,6 @@ void TcContext::init_mem() {
     0xc0000, NVOS32_TYPE_IMAGE);
   mem_error_handle = heap_alloc(fd_ctl, fd_uvm, root, device, subdevice,
     mem_error, 0x1000, 0xc001, 0, NVOS32_TYPE_NOTIFIER);
-
 }
 
 void TcContext::init_fifo() {
