@@ -452,9 +452,7 @@ int main(int argc, char *argv[]) {
   printf("memcpyed program into gpu memory\n");
 
   // run program
-  // shifted 8?
-  //gpu_compute(push, 0x204E02000, gpu_base+0x1000, gpu_base+0x2000, 0x188);
-  gpu_compute(push, 0x2005f0000, gpu_base+0x1000, gpu_base+0x2000, 0x188);
+  gpu_compute(push, gpu_base+0x4000, gpu_base+0x1000, gpu_base+0x2000, 0x188);
 
   // do this too
   gpu_dma_copy(push, gpu_base+0x14, gpu_base+0, 8);
