@@ -170,10 +170,10 @@ void gpu_compute(struct nouveau_pushbuf *push, uint64_t qmd, uint64_t program_ad
   }
 }
 
-void kick(int cb_index) {
+void kick(volatile uint32_t *doorbell, int cb_index) {
   // is this the doorbell register?
-  volatile uint32_t *addr = (volatile uint32_t*)0x13370090;
-  *addr = cb_index;
+  //printf("kick\n");
+  *doorbell = cb_index;
 }
 
 uint64_t trivial[] = {
@@ -258,6 +258,7 @@ NvHandle heap_alloc(int fd_ctl, int fd_uvm, NvHandle root, NvHandle device, NvHa
 int main(int argc, char *argv[]) {
   void *mem_error = (void*)0x7ffff7ffb000;
   int work_submit_token = 0;
+  void *gpu_mmio_ptr = (void *)0x13370000;
 
   if (!getenv("NVDRIVER")) {
     int fd_ctl = open64("/dev/nvidiactl", O_RDWR);
@@ -284,8 +285,8 @@ int main(int argc, char *argv[]) {
     NV2080_ALLOC_PARAMETERS ap2080 = {0};
     NvHandle subdevice = alloc_object(fd_ctl, NV20_SUBDEVICE_0, root, device, &ap2080);
     NvHandle usermode = alloc_object(fd_ctl, TURING_USERMODE_A, root, subdevice, NULL);
-    void *gpu_mmio_ptr = mmap_object(fd_ctl, root, subdevice, usermode, 0x10000, NULL, 2);
-    assert(gpu_mmio_ptr == (void *)0x13370000);
+    gpu_mmio_ptr = mmap_object(fd_ctl, root, subdevice, usermode, 0x10000, NULL, 2);
+    //assert(gpu_mmio_ptr == (void *)0x13370000);
 
     NV_VASPACE_ALLOCATION_PARAMETERS vap = {0};
     vap.flags = NV_VASPACE_ALLOCATION_FLAGS_ENABLE_PAGE_FAULTING | NV_VASPACE_ALLOCATION_FLAGS_IS_EXTERNALLY_OWNED;
@@ -464,12 +465,16 @@ int main(int argc, char *argv[]) {
   *((uint64_t*)0x20040208c) = 0x7f;*/
   *((uint64_t*)0x200400000) = cmdq | (sz << 40) | 0x20000000000;
   *((uint64_t*)0x20040208c) = 1;
-  kick(work_submit_token);
+  kick(&((volatile uint32_t*)gpu_mmio_ptr)[0x90/4], work_submit_token);
 
   // wait for it to run
-  usleep(200*1000);
+  volatile uint32_t *done = (uint32_t*)0x200402088;
+  printf("ran to queue %d\n", *done);
+  int cnt = 0; while (!*done && cnt<1000) { usleep(1000); cnt++; }
+  usleep(10*1000);
+  printf("ran to queue %d\n", *done);
   //hexdump((void*)0x200400000, 0x100);
-  hexdump((void*)0x200402000, 0x100);
+  //hexdump((void*)0x200402080, 0x100);
   //hexdump((void*)0x203600000, 0x100);
 
   // dump ram to check

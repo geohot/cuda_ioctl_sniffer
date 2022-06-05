@@ -77,10 +77,18 @@ static void handler(int sig, siginfo_t *si, void *unused) {
 
   // TODO: where does start come from
   // rdx is the offset into the command buffer GPU mapping
+  // TODO: decompile all stores
+  int store_reg = REG_RAX;
   if (rip[0] == 0x89 && rip[1] == 0x10) {
     rdx = u->uc_mcontext.gregs[REG_RDX];
   } else if (rip[0] == 0x89 && rip[1] == 0x08) {
     rdx = u->uc_mcontext.gregs[REG_RCX];
+  } else if (rip[0] == 0x89 && rip[1] == 0x0a) {
+    rdx = u->uc_mcontext.gregs[REG_RCX];
+    store_reg = REG_RDX;
+  } else if (rip[0] == 0x89 && rip[1] == 0x01) {
+    rdx = u->uc_mcontext.gregs[REG_RAX];
+    store_reg = REG_RCX;
   } else {
     printf("UNKNOWN CALL ASM\n");
     hexdump(rip, 0x80);
@@ -96,7 +104,7 @@ static void handler(int sig, siginfo_t *si, void *unused) {
     hook(addr, rdx, handler_start);
   }
 
-  u->uc_mcontext.gregs[REG_RAX] = addr;
+  u->uc_mcontext.gregs[store_reg] = addr;
 }
 
 __attribute__((constructor)) void foo(void) {
