@@ -169,52 +169,37 @@ uint64_t trivial[] = {
 #define GPU_UUID "\xb4\xe9\x43\xc6\xdc\xb5\x96\x92\x6d\xb1\x04\x69\x18\x65\x8d\x08"
 
 NvHandle alloc_object(int fd_ctl, NvV32 hClass, NvHandle root, NvHandle parent, void *params) {
-  NVOS21_PARAMETERS p = {0};
-  p.hRoot = root;
-  p.hObjectParent = parent;
-  p.hClass = hClass;
-
-  p.pAllocParms = params;
+  NVOS21_PARAMETERS p = {
+    .hRoot = root, .hObjectParent = parent, .hClass = hClass, .pAllocParms = params
+  };
   int ret = ioctl(fd_ctl, __NV_IOWR(NV_ESC_RM_ALLOC, p), &p);
   assert(ret == 0);
   assert(p.status == 0);
   return p.hObjectNew;
 }
 
-void *mmap_object(int fd_ctl, NvHandle root, NvHandle device, NvHandle memory, int length, void *target, int flags) {
+void *mmap_object(int fd_ctl, NvHandle client, NvHandle device, NvHandle memory, NvU64 length, void *target, NvU32 flags) {
   int fd_dev0 = open64("/dev/nvidia0", O_RDWR | O_CLOEXEC);
-  {
-    nv_ioctl_nvos33_parameters_with_fd p = {0};
-    p.params.hClient = root;
-    p.params.hDevice = device;
-    p.params.hMemory = memory;
-    //p.params.pLinearAddress = pLinearAddress;
-    p.params.length = length;
-    p.params.flags = flags;
-    p.fd = fd_dev0;
-    int ret = ioctl(fd_ctl, __NV_IOWR(NV_ESC_RM_MAP_MEMORY, p), &p);
-    assert(ret == 0);
-    assert(p.params.status == 0);
-  }
+  nv_ioctl_nvos33_parameters_with_fd p = {.params = {
+    .hClient = client, .hDevice = device, .hMemory = memory, .length = length, .flags = flags
+  }, .fd = fd_dev0 };
+  int ret = ioctl(fd_ctl, __NV_IOWR(NV_ESC_RM_MAP_MEMORY, p), &p);
+  assert(ret == 0);
+  assert(p.params.status == 0);
   return mmap64(target, length, PROT_READ|PROT_WRITE, MAP_SHARED | (target != NULL ? MAP_FIXED : 0), fd_dev0, 0);
 }
 
-NvHandle heap_alloc(int fd_ctl, int fd_uvm, NvHandle root, NvHandle device, NvHandle subdevice, void *addr, int length, int flags, int mmap_flags, int type) {
-  NvHandle mem;
-  {
-    NVOS32_PARAMETERS p = {0};
-    auto asz = &p.data.AllocSize;
-    p.hRoot = root;
-    p.hObjectParent = device;
-    p.function = NVOS32_FUNCTION_ALLOC_SIZE;
-    asz->owner = root;
-    asz->flags = flags;
-    asz->size = length;
-    asz->type = type;
-    int ret = ioctl(fd_ctl, __NV_IOWR(NV_ESC_RM_VID_HEAP_CONTROL, p), &p);
-    mem = asz->hMemory;
-    assert(p.status == 0);
-  }
+NvHandle heap_alloc(int fd_ctl, int fd_uvm, NvHandle root, NvHandle device, NvHandle subdevice, void *addr, NvU64 length, NvU32 flags, int mmap_flags, NvU32 type) {
+  NVOS32_PARAMETERS p = {
+    .hRoot = root, .hObjectParent = device, .function = NVOS32_FUNCTION_ALLOC_SIZE,
+    .data = { .AllocSize = {
+      .owner = root, .type = type,
+      .flags = flags, .size = length
+    } }
+  };
+  int ret = ioctl(fd_ctl, __NV_IOWR(NV_ESC_RM_VID_HEAP_CONTROL, p), &p);
+  assert(p.status == 0);
+  NvHandle mem = p.data.AllocSize.hMemory;
   void *local_ptr = mmap_object(fd_ctl, root, subdevice, mem, length, addr, mmap_flags);
   assert(local_ptr == (void *)addr);
 
@@ -239,19 +224,15 @@ NvHandle heap_alloc(int fd_ctl, int fd_uvm, NvHandle root, NvHandle device, NvHa
     p.perGpuAttributes[0].gpuMappingType = 1;
     int ret = ioctl(fd_uvm, UVM_MAP_EXTERNAL_ALLOCATION, &p);
     assert(ret == 0);
-    // this fails for the error map, it's fine
     assert(p.rmStatus == 0);
   }
   return mem;
 }
 
-void rm_control(int fd_ctl, int cmd, NvHandle client, NvHandle object, void *params, int paramsize) {
-  NVOS54_PARAMETERS p = {0};
-  p.cmd = cmd;
-  p.hClient = client;
-  p.hObject = object;
-  p.params = params;
-  p.paramsSize = paramsize;
+void rm_control(int fd_ctl, NvU32 cmd, NvHandle client, NvHandle object, void *params, NvU32 paramsize) {
+  NVOS54_PARAMETERS p = {
+    .hClient = client, .hObject = object, .cmd = cmd, .params = params, .paramsSize = paramsize
+  };
   int ret = ioctl(fd_ctl, __NV_IOWR(NV_ESC_RM_CONTROL, p), &p);
   assert(ret == 0);
   assert(p.status == 0);
