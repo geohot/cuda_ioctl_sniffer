@@ -487,6 +487,14 @@ int ioctl(int filedes, unsigned long request, void *argp) {
           }
           break;
         }
+        case UVM_REGISTER_CHANNEL: {
+          UVM_REGISTER_CHANNEL_PARAMS *p = (UVM_REGISTER_CHANNEL_PARAMS *)argp;
+          printf("UVM_REGISTER_CHANNEL_PARAMS gpu_uuid:*** rmCtrlFd:%x hClient:%x hChannel:%x base: %llx length: %x rmStatus:%x\n",
+            p->rmCtrlFd, p->hClient, p->hChannel,
+            p->base, p->length,
+            p->rmStatus);
+          break;
+        }
         case UVM_REGISTER_GPU_VASPACE: {
           UVM_REGISTER_GPU_VASPACE_PARAMS *p = (UVM_REGISTER_GPU_VASPACE_PARAMS *)argp;
           printf("UVM_REGISTER_GPU_VASPACE_PARAMS gpu_uuid:*** rmCtrlFd:%x hClient:%x hVaSpace:%x rmStatus:%x\n", p->rmCtrlFd, p->hClient, p->hVaSpace, p->rmStatus);
@@ -498,6 +506,9 @@ int ioctl(int filedes, unsigned long request, void *argp) {
           break;
         }
         default: {
+          // UVM_MAP_DYNAMIC_PARALLELISM_REGION
+          // UVM_ALLOC_SEMAPHORE_POOL
+          // UVM_VALIDATE_VA_RANGE
           printf("UNPARSED UVM IOCTL 0x%x %d\n", request, request);
           break;
         }

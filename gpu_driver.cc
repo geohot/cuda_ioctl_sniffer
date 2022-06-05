@@ -17,6 +17,8 @@
 #include "src/common/sdk/nvidia/inc/class/cl2080.h"
 #include "src/common/sdk/nvidia/inc/class/cl0080.h"
 #include "src/common/sdk/nvidia/inc/ctrl/ctrlc36f.h"
+#include "src/common/sdk/nvidia/inc/ctrl/ctrla06c.h"
+#include "src/common/sdk/nvidia/inc/ctrl/ctrla06f/ctrla06fgpfifo.h"
 #include "rs.h"
 
 #include <thread>
@@ -265,10 +267,10 @@ int main(int argc, char *argv[]) {
       assert(ret == 0);
     }
 
+    NvHandle mem2 = heap_alloc(fd_ctl, fd_uvm, root, device, subdevice, (void *)0x200200000, 0x200000, NVOS32_ALLOC_FLAGS_IGNORE_BANK_PLACEMENT | NVOS32_ALLOC_FLAGS_ALIGNMENT_FORCE | NVOS32_ALLOC_FLAGS_MEMORY_HANDLE_PROVIDED | NVOS32_ALLOC_FLAGS_MAP_NOT_REQUIRED | NVOS32_ALLOC_FLAGS_PERSISTENT_VIDMEM);
     NvHandle mem = heap_alloc(fd_ctl, fd_uvm, root, device, subdevice, (void *)0x200400000, 0x200000, NVOS32_ALLOC_FLAGS_IGNORE_BANK_PLACEMENT | NVOS32_ALLOC_FLAGS_ALIGNMENT_FORCE | NVOS32_ALLOC_FLAGS_MEMORY_HANDLE_PROVIDED | NVOS32_ALLOC_FLAGS_MAP_NOT_REQUIRED | NVOS32_ALLOC_FLAGS_PERSISTENT_VIDMEM);
     NvHandle mem_error = 0;
-    //heap_alloc(fd_ctl, fd_uvm, root, device, subdevice, (void *)0x200600000, 0x3000000, 0xc001);
-    //NvHandle mem_error = heap_alloc(fd_ctl, fd_uvm, root, device, subdevice, (void *)0x200600000, 0x1000, 0);
+    mem_error = heap_alloc(fd_ctl, fd_uvm, root, device, subdevice, (void *)0x200600000, 0x1000, 0);
 
     NV_CHANNEL_GROUP_ALLOCATION_PARAMETERS cgap = {0};
     cgap.engineType = NV2080_ENGINE_TYPE_GRAPHICS;
@@ -293,9 +295,7 @@ int main(int argc, char *argv[]) {
     NvHandle gpfifo = alloc_object(fd_ctl, AMPERE_CHANNEL_GPFIFO_A, root, channel_group, &fifoap);
 
     //hexdump((void*)0x200800000, 0x40);
-    exit(0);
-
-
+    //exit(0);
 
     NvHandle compute = alloc_object(fd_ctl, AMPERE_COMPUTE_B, root, gpfifo, NULL);
     NvHandle dmacopy = alloc_object(fd_ctl, AMPERE_DMA_COPY_B, root, gpfifo, NULL);
@@ -316,11 +316,39 @@ int main(int argc, char *argv[]) {
       work_submit_token = sp.workSubmitToken;
     }
 
-    //exit(0);
-    #ifdef MY_DRIVER
-      printf("error %p\n", (void*)local_err_ptr);
-      hexdump((void*)local_err_ptr, 0x40);
-    #endif
+    //system("sudo dmesg -c > /dev/null");
+    {
+      UVM_REGISTER_CHANNEL_PARAMS p = {0};
+      memcpy(&p.gpuUuid.uuid, GPU_UUID, 0x10);
+      p.rmCtrlFd = fd_ctl;
+      p.hClient = root;
+      p.hChannel = gpfifo;
+      // TODO: is this right?
+      //p.base = 0x200400000;
+      //p.length = 0x200000;
+      p.base = 0x203600000;
+      p.length = 0xf6e000;
+      int ret = ioctl(fd_uvm, UVM_REGISTER_CHANNEL, &p);
+      assert(ret == 0);
+    }
+
+    {
+      NVOS54_PARAMETERS p = {0};
+      NVA06C_CTRL_GPFIFO_SCHEDULE_PARAMS sp = {0};
+      p.cmd = NVA06C_CTRL_CMD_GPFIFO_SCHEDULE;
+      p.hClient = root;
+      p.hObject = channel_group;
+      p.params = &sp;
+      p.paramsSize = sizeof(sp);
+      sp.bEnable = true;
+      int ret = ioctl(fd_ctl, __NV_IOWR(NV_ESC_RM_CONTROL, p), &p);
+      assert(ret == 0);
+    }
+
+    /*usleep(100*1000);
+    system("dmesg");
+    exit(0);*/
+
   } else {
     // our GPU driver doesn't support init. use CUDA
     // TODO: remove linking to CUDA
@@ -336,6 +364,7 @@ int main(int argc, char *argv[]) {
   }
 
   printf("**************** INIT DONE ****************\n");
+  clear_gpu_ctrl();
 
   // set up command queue
   // TODO: don't hardcode addresses
@@ -379,12 +408,17 @@ int main(int argc, char *argv[]) {
 
   // kick off command queue
   uint64_t sz = (uint64_t)push->cur - cmdq;
-  *((uint64_t*)0x2004003f0) = cmdq | (sz << 40) | 0x20000000000;
-  *((uint64_t*)0x20040208c) = 0x7f;
+  /**((uint64_t*)0x2004003f0) = cmdq | (sz << 40) | 0x20000000000;
+  *((uint64_t*)0x20040208c) = 0x7f;*/
+  *((uint64_t*)0x200400000) = cmdq | (sz << 40) | 0x20000000000;
+  *((uint64_t*)0x20040208c) = 1;
   kick(work_submit_token);
 
   // wait for it to run
   usleep(200*1000);
+  //hexdump((void*)0x200400000, 0x100);
+  hexdump((void*)0x200402000, 0x100);
+  //hexdump((void*)0x203600000, 0x100);
 
   // dump ram to check
   printf("pc %p\n", (void*)gpu_base);

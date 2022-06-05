@@ -3,7 +3,7 @@
 #include <stdint.h>
 
 void clear_gpu_ctrl() {
-  memset((void*)0x200400000, 0, 0x203600000-0x200400000);
+  memset((void*)0x200400000, 0, 0x200600000-0x200400000);
 }
 
 void hexdump(void *d, int l) {
