@@ -1,21 +1,22 @@
-// TODO: write userspace GPU driver
 #include "helpers.h"
 #include "nouveau.h"
 
-//#include "src/nvidia/inc/libraries/containers/type_safety.h"
 #include "kernel-open/nvidia-uvm/uvm_linux_ioctl.h"
 #include "kernel-open/nvidia-uvm/uvm_ioctl.h"
 
 #define NV_PLATFORM_MAX_IOCTL_SIZE 0xFFF
-#include "src/common/sdk/nvidia/inc/ctrl/ctrl0000/ctrl0000gpu.h"
 #include "kernel-open/common/inc/nv-ioctl-numbers.h"
 #include "kernel-open/common/inc/nv.h"
+#include "src/common/sdk/nvidia/inc/nvos.h"
+
+#include "src/nvidia/generated/g_allclasses.h"
 #include "src/nvidia/arch/nvalloc/unix/include/nv_escape.h"
 #include "src/nvidia/arch/nvalloc/unix/include/nv-unix-nvos-params-wrappers.h"
-#include "src/common/sdk/nvidia/inc/nvos.h"
-#include "src/nvidia/generated/g_allclasses.h"
-#include "src/common/sdk/nvidia/inc/class/cl2080.h"
+
 #include "src/common/sdk/nvidia/inc/class/cl0080.h"
+#include "src/common/sdk/nvidia/inc/class/cl2080.h"
+
+#include "src/common/sdk/nvidia/inc/ctrl/ctrl0000/ctrl0000gpu.h"
 #include "src/common/sdk/nvidia/inc/ctrl/ctrlc36f.h"
 #include "src/common/sdk/nvidia/inc/ctrl/ctrla06c.h"
 #include "src/common/sdk/nvidia/inc/ctrl/ctrla06f/ctrla06fgpfifo.h"
@@ -24,7 +25,9 @@
 #include <thread>
 #include <sys/ioctl.h>
 #include <fcntl.h>
+#ifndef DISABLE_CUDA_SUPPORT
 #include <cuda.h>
+#endif
 #include <unistd.h>
 #include <sys/mman.h>
 
@@ -361,6 +364,7 @@ int main(int argc, char *argv[]) {
   } else {
     // our GPU driver doesn't support init. use CUDA
     // TODO: remove linking to CUDA
+#ifndef DISABLE_CUDA_SUPPORT
     CUdevice pdev;
     CUcontext pctx;
     printf("**** init\n");
@@ -370,6 +374,7 @@ int main(int argc, char *argv[]) {
     printf("**** ctx\n");
     cuCtxCreate(&pctx, 0, pdev);
     work_submit_token = 0xd;
+#endif
   }
 
   printf("**************** INIT DONE ****************\n");
