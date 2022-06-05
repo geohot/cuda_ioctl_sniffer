@@ -49,6 +49,13 @@ PUSH_DATAl(struct nouveau_pushbuf *push, uint64_t data)
 }
 
 static inline void
+PUSH_DATAhl(struct nouveau_pushbuf *push, uint64_t data)
+{
+   PUSH_DATAh(push, data);
+   PUSH_DATAl(push, data);
+}
+
+static inline void
 BEGIN_NVC0(struct nouveau_pushbuf *push, int subc, int mthd, unsigned size)
 {
 #ifndef NVC0_PUSH_EXPLICIT_SPACE_CHECKING

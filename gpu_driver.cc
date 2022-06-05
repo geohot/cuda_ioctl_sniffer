@@ -36,14 +36,11 @@ void gpu_setup(struct nouveau_pushbuf *push) {
   BEGIN_NVC0(push, 1, NVC6C0_NO_OPERATION, 1);
   PUSH_DATA(push, 0);*/
 
-  BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_SHARED_MEMORY_WINDOW_A, 1); PUSH_DATAh(push, 0x00007FFFF4000000);
-  BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_SHARED_MEMORY_WINDOW_B, 1); PUSH_DATAl(push, 0x00007FFFF4000000);
+  BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_SHARED_MEMORY_WINDOW_A, 2); PUSH_DATAhl(push, 0x00007FFFF4000000);
+  BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_A, 2); PUSH_DATAhl(push, 0x004B0000);
 
   //BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_LOCAL_MEMORY_A, 1); PUSH_DATAh(push, 0x00007FFFC0000000);
   //BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_LOCAL_MEMORY_B, 1); PUSH_DATAl(push, 0x00007FFFC0000000);
-
-  BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_A, 1); PUSH_DATAh(push, 0x004B0000);
-  BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_B, 1); PUSH_DATAl(push, 0x004B0000);
 
   //BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_LOCAL_MEMORY_WINDOW_A, 1); PUSH_DATAh(push, 0x00007FFFF2000000);
   //BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_LOCAL_MEMORY_WINDOW_B, 1); PUSH_DATAl(push, 0x00007FFFF2000000);
@@ -65,10 +62,8 @@ void gpu_setup(struct nouveau_pushbuf *push) {
 // NVC6B5 = AMPERE_DMA_COPY_A
 void gpu_dma_copy(struct nouveau_pushbuf *push, uint64_t dst, uint64_t src, int len) {
   BEGIN_NVC0(push, 4, NVC6B5_OFFSET_IN_UPPER, 4);
-  PUSH_DATAh(push, src);
-  PUSH_DATAl(push, src);
-  PUSH_DATAh(push, dst);  // NVC6B5_OFFSET_OUT_UPPER
-  PUSH_DATAl(push, dst);
+  PUSH_DATAhl(push, src);
+  PUSH_DATAhl(push, dst);  // NVC6B5_OFFSET_OUT_UPPER
   BEGIN_NVC0(push, 4, NVC6B5_LINE_LENGTH_IN, 1);
   PUSH_DATA(push, len);
   BEGIN_NVC0(push, 4, NVC6B5_LAUNCH_DMA, 1);
@@ -83,8 +78,7 @@ void gpu_memcpy(struct nouveau_pushbuf *push, uint64_t dst, const uint32_t *dat,
   assert(len%4 == 0);
 
   BEGIN_NVC0(push, 1, NVC6C0_OFFSET_OUT_UPPER, 2);
-  PUSH_DATAh(push, dst);
-  PUSH_DATAl(push, dst);
+  PUSH_DATAhl(push, dst);
   BEGIN_NVC0(push, 1, NVC6C0_LINE_LENGTH_IN, 2);
   PUSH_DATA(push, len);
   PUSH_DATA(push, 1);    // NVC6C0_LINE_COUNT
@@ -102,8 +96,7 @@ void gpu_memcpy(struct nouveau_pushbuf *push, uint64_t dst, const uint32_t *dat,
 
 void gpu_compute(struct nouveau_pushbuf *push, uint64_t qmd, uint64_t program_address, uint64_t constant_address, int constant_length) {
   BEGIN_NVC0(push, 1, NVC6C0_SET_INLINE_QMD_ADDRESS_A, 2);
-  PUSH_DATAh(push, qmd>>8);
-  PUSH_DATAl(push, qmd>>8);
+  PUSH_DATAhl(push, qmd>>8);
 
   uint32_t dat[0x40];
   memset(dat, 0, sizeof(dat));
