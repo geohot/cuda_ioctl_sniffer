@@ -165,10 +165,51 @@ void *mmap_object(int fd_ctl, NvHandle root, NvHandle subdevice, NvHandle usermo
   return mmap64(target, length, PROT_READ|PROT_WRITE, MAP_SHARED | (target != NULL ? MAP_FIXED : 0), fd_dev0, 0);
 }
 
-// NVDRIVER=1 EXIT_IOCTL=94 BLOCK_IOCTL=11,12,78,85,73,82,16,20,30,13,15,17,19,35,71 ./driver.sh 
+NvHandle heap_alloc(int fd_ctl, int fd_uvm, NvHandle root, NvHandle device, NvHandle subdevice, void *addr, int length) {
+  NvHandle mem;
+  {
+    NVOS32_PARAMETERS p = {0};
+    auto asz = &p.data.AllocSize;
+    p.hRoot = root;
+    p.hObjectParent = device;
+    p.function = NVOS32_FUNCTION_ALLOC_SIZE;
+    asz->owner = root;
+    asz->flags = NVOS32_ALLOC_FLAGS_IGNORE_BANK_PLACEMENT | NVOS32_ALLOC_FLAGS_ALIGNMENT_FORCE | NVOS32_ALLOC_FLAGS_MEMORY_HANDLE_PROVIDED |
+      NVOS32_ALLOC_FLAGS_MAP_NOT_REQUIRED | NVOS32_ALLOC_FLAGS_PERSISTENT_VIDMEM;
+    asz->size = length;
+    int ret = ioctl(fd_ctl, __NV_IOWR(NV_ESC_RM_VID_HEAP_CONTROL, p), &p);
+    mem = asz->hMemory;
+  }
+  void *local_ptr = mmap_object(fd_ctl, root, subdevice, mem, (void*)0xd2580000, length, addr, 0xc0000);
+  assert(local_ptr == (void *)addr);
 
+  {
+    UVM_CREATE_EXTERNAL_RANGE_PARAMS p = {0};
+    p.base = (NvU64)local_ptr;
+    p.length = 0x200000;
+    int ret = ioctl(fd_uvm, UVM_CREATE_EXTERNAL_RANGE, &p);
+    assert(ret == 0);
+  }
+  {
+    UVM_MAP_EXTERNAL_ALLOCATION_PARAMS p = {0};
+    p.base = (NvU64)local_ptr;
+    p.length = 0x200000;
+    p.rmCtrlFd = fd_ctl;
+    p.hClient = root;
+    p.hMemory = mem;
+    p.gpuAttributesCount = 1;
+    memcpy(&p.perGpuAttributes[0].gpuUuid, GPU_UUID, 0x10);
+    p.perGpuAttributes[0].gpuMappingType = 1;
+    int ret = ioctl(fd_uvm, UVM_MAP_EXTERNAL_ALLOCATION, &p);
+    assert(ret == 0);
+  }
+  return mem;
+}
+
+// NVDRIVER=1 EXIT_IOCTL=94 BLOCK_IOCTL=11,12,78,85,73,82,16,20,30,13,15,17,19,35,71 ./driver.sh 
 // EXIT_IOCTL=95 NVDRIVER=1 BLOCK_IOCTL=11,12,78,85,73,82,16,20,30,13,15,17,19,35,71 ./driver.sh
 
+// BLOCK_IOCTL=11,12,78,85,73,82,16,20,30,13,15,17,19,35,71 EXIT_IOCTL=106 NVDRIVER=1 ./driver.sh
 int main(int argc, char *argv[]) {
   int work_submit_token = 0;
   if (!getenv("NVDRIVER")) {
@@ -236,74 +277,24 @@ int main(int argc, char *argv[]) {
     cap.hVASpace = vaspace;
     cap.flags = 1;
     NvHandle share = alloc_object(fd_ctl, FERMI_CONTEXT_SHARE_A, root, channel_group, &cap);
+    NvHandle mem = heap_alloc(fd_ctl, fd_uvm, root, device, subdevice, (void *)0x200400000, 0x200000);
+    //NvHandle mem_error = heap_alloc(fd_ctl, fd_uvm, root, device, (void *)0x200800000, 0x1000);
 
-
-    NvHandle mem;
-    {
-      NVOS32_PARAMETERS p = {0};
-      auto asz = &p.data.AllocSize;
-      p.hRoot = root;
-      p.hObjectParent = device;
-      p.function = NVOS32_FUNCTION_ALLOC_SIZE;
-      asz->owner = root;
-      //asz->flags = 0x1c101;
-      asz->flags = NVOS32_ALLOC_FLAGS_IGNORE_BANK_PLACEMENT | NVOS32_ALLOC_FLAGS_ALIGNMENT_FORCE | NVOS32_ALLOC_FLAGS_MEMORY_HANDLE_PROVIDED |
-        NVOS32_ALLOC_FLAGS_MAP_NOT_REQUIRED | NVOS32_ALLOC_FLAGS_PERSISTENT_VIDMEM;
-      asz->size = 0x200000;
-      int ret = ioctl(fd_ctl, __NV_IOWR(NV_ESC_RM_VID_HEAP_CONTROL, p), &p);
-      mem = asz->hMemory;
-    }
-    void *local_ptr = mmap_object(fd_ctl, root, subdevice, mem, (void*)0xd2580000, 0x200000, (void*)0x200400000, 0xc0000);
-    assert(local_ptr == (void *)0x200400000);
-
-    {
-      UVM_CREATE_EXTERNAL_RANGE_PARAMS p = {0};
-      p.base = (NvU64)local_ptr;
-      p.length = 0x200000;
-      int ret = ioctl(fd_uvm, UVM_CREATE_EXTERNAL_RANGE, &p);
-      assert(ret == 0);
-    }
-    {
-      UVM_MAP_EXTERNAL_ALLOCATION_PARAMS p = {0};
-      p.base = (NvU64)local_ptr;
-      p.length = 0x200000;
-      p.rmCtrlFd = fd_ctl;
-      p.hClient = root;
-      p.hMemory = mem;
-      p.gpuAttributesCount = 1;
-      memcpy(&p.perGpuAttributes[0].gpuUuid, GPU_UUID, 0x10);
-      p.perGpuAttributes[0].gpuMappingType = 1;
-      int ret = ioctl(fd_uvm, UVM_MAP_EXTERNAL_ALLOCATION, &p);
-      assert(ret == 0);
-    }
-
-    exit(0);
-
-    /*NvHandle mem_error;
-    {
-      NVOS32_PARAMETERS p = {0};
-      auto asz = &p.data.AllocSize;
-      p.hRoot = root;
-      p.hObjectParent = device;
-      p.function = NVOS32_FUNCTION_ALLOC_SIZE;
-      asz->owner = root;
-      asz->flags = 0x1c101;
-      asz->size = 0x1000;
-      int ret = ioctl(fd_ctl, __NV_IOWR(NV_ESC_RM_VID_HEAP_CONTROL, p), &p);
-      mem_error = asz->hMemory;
-    }
-    void *local_err_ptr = mmap_object(fd_ctl, root, subdevice, mem_error, (void*)0, 0x1000, (void*)0x200800000, 0xc0000);
-    assert(local_err_ptr == (void *)0x200800000);
-    memset(local_err_ptr, 0, 0x1000);*/
-
+    // BLOCK_IOCTL=98,11,12,78,85,73,82,16,20,30,13,15,17,19,35,71 EXIT_IOCTL=106 NVDRIVER=1 ./driver.sh  
     NV_CHANNELGPFIFO_ALLOCATION_PARAMETERS fifoap = {0};
-    //fifoap.hObjectError = mem_error; // wrong
+    //fifoap.hObjectError = mem_error;
     fifoap.hObjectBuffer = mem;
     fifoap.gpFifoOffset = 0x200400000;
     fifoap.gpFifoEntries = 0x400;
     fifoap.hUserdMemory[0] = mem;
     fifoap.userdOffset[0] = 0x2000;
     NvHandle gpfifo = alloc_object(fd_ctl, AMPERE_CHANNEL_GPFIFO_A, root, channel_group, &fifoap);
+
+    //hexdump((void*)0x200800000, 0x40);
+    exit(0);
+
+
+
     NvHandle compute = alloc_object(fd_ctl, AMPERE_COMPUTE_B, root, gpfifo, NULL);
     NvHandle dmacopy = alloc_object(fd_ctl, AMPERE_DMA_COPY_B, root, gpfifo, NULL);
 

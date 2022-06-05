@@ -384,6 +384,12 @@ int ioctl(int filedes, unsigned long request, void *argp) {
             printf("cid: %x\n", pAllocParams->cid);
             printf("subDeviceId: %x\n", pAllocParams->subDeviceId);
             printf("hObjectEccError: %x\n", pAllocParams->hObjectEccError);
+
+            #define DMP(x) printf(#x " %llx %llx %d %d\n", x.base, x.size, x.addressSpace, x.cacheAttrib);
+            DMP(pAllocParams->instanceMem);
+            DMP(pAllocParams->userdMem);
+            DMP(pAllocParams->ramfcMem);
+            DMP(pAllocParams->mthdbufMem);
           } else {
             hexdump(p->pAllocParms, 0x40);
           }
@@ -421,7 +427,7 @@ int ioctl(int filedes, unsigned long request, void *argp) {
         printf("UNKNOWN %lx\n", request);
         break;
     }
-    //usleep(50*1000); system("sudo dmesg -c");
+    if (getenv("DMESG")) { usleep(50*1000); system("sudo dmesg -c"); }
   } else {
     // non nvidia ioctl
     printf("non nvidia ioctl %d %s 0x%x %p\n", filedes, files[filedes].c_str(), request, argp);
