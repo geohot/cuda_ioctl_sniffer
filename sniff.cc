@@ -376,10 +376,12 @@ int ioctl(int filedes, unsigned long request, void *argp) {
             printf("gpFifoEntries: %x\n", pAllocParams->gpFifoEntries);
             printf("flags: %x\n", pAllocParams->flags);
             printf("hVASpace: %x\n", pAllocParams->hVASpace);
-            printf("hUserdMemory[0]: %x\n", pAllocParams->hUserdMemory[0]);
-            printf("userdOffset[0]: %llx\n", pAllocParams->userdOffset[0]);
-            printf("hUserdMemory[1]: %x\n", pAllocParams->hUserdMemory[1]);
-            printf("userdOffset[1]: %llx\n", pAllocParams->userdOffset[1]);
+            for (int i = 0; i < NVOS_MAX_SUBDEVICES; i++) {
+              if (pAllocParams->hUserdMemory[i] > 0) {
+                printf("hUserdMemory[%d]: %x\n", i, pAllocParams->hUserdMemory[i]);
+                printf("userdOffset[%d]: %llx\n", i, pAllocParams->userdOffset[i]);
+              }
+            }
             printf("engineType: %x\n", pAllocParams->engineType);
             printf("cid: %x\n", pAllocParams->cid);
             printf("subDeviceId: %x\n", pAllocParams->subDeviceId);

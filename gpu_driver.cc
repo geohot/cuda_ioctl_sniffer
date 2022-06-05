@@ -148,14 +148,14 @@ NvHandle alloc_object(int fd_ctl, NvV32 hClass, NvHandle root, NvHandle parent, 
   return p.hObjectNew;
 }
 
-void *mmap_object(int fd_ctl, NvHandle root, NvHandle subdevice, NvHandle usermode, void *pLinearAddress, int length, void *target, int flags) {
+void *mmap_object(int fd_ctl, NvHandle root, NvHandle subdevice, NvHandle usermode, int length, void *target, int flags) {
   int fd_dev0 = open64("/dev/nvidia0", O_RDWR | O_CLOEXEC);
   {
     nv_ioctl_nvos33_parameters_with_fd p = {0};
     p.params.hClient = root;
     p.params.hDevice = subdevice;
     p.params.hMemory = usermode;
-    p.params.pLinearAddress = pLinearAddress;
+    //p.params.pLinearAddress = pLinearAddress;
     p.params.length = length;
     p.params.flags = flags;
     p.fd = fd_dev0;
@@ -165,7 +165,7 @@ void *mmap_object(int fd_ctl, NvHandle root, NvHandle subdevice, NvHandle usermo
   return mmap64(target, length, PROT_READ|PROT_WRITE, MAP_SHARED | (target != NULL ? MAP_FIXED : 0), fd_dev0, 0);
 }
 
-NvHandle heap_alloc(int fd_ctl, int fd_uvm, NvHandle root, NvHandle device, NvHandle subdevice, void *addr, int length) {
+NvHandle heap_alloc(int fd_ctl, int fd_uvm, NvHandle root, NvHandle device, NvHandle subdevice, void *addr, int length, int flags) {
   NvHandle mem;
   {
     NVOS32_PARAMETERS p = {0};
@@ -174,13 +174,12 @@ NvHandle heap_alloc(int fd_ctl, int fd_uvm, NvHandle root, NvHandle device, NvHa
     p.hObjectParent = device;
     p.function = NVOS32_FUNCTION_ALLOC_SIZE;
     asz->owner = root;
-    asz->flags = NVOS32_ALLOC_FLAGS_IGNORE_BANK_PLACEMENT | NVOS32_ALLOC_FLAGS_ALIGNMENT_FORCE | NVOS32_ALLOC_FLAGS_MEMORY_HANDLE_PROVIDED |
-      NVOS32_ALLOC_FLAGS_MAP_NOT_REQUIRED | NVOS32_ALLOC_FLAGS_PERSISTENT_VIDMEM;
+    asz->flags = flags;
     asz->size = length;
     int ret = ioctl(fd_ctl, __NV_IOWR(NV_ESC_RM_VID_HEAP_CONTROL, p), &p);
     mem = asz->hMemory;
   }
-  void *local_ptr = mmap_object(fd_ctl, root, subdevice, mem, (void*)0xd2580000, length, addr, 0xc0000);
+  void *local_ptr = mmap_object(fd_ctl, root, subdevice, mem, length, addr, 0xc0000);
   assert(local_ptr == (void *)addr);
 
   {
@@ -206,10 +205,8 @@ NvHandle heap_alloc(int fd_ctl, int fd_uvm, NvHandle root, NvHandle device, NvHa
   return mem;
 }
 
-// NVDRIVER=1 EXIT_IOCTL=94 BLOCK_IOCTL=11,12,78,85,73,82,16,20,30,13,15,17,19,35,71 ./driver.sh 
-// EXIT_IOCTL=95 NVDRIVER=1 BLOCK_IOCTL=11,12,78,85,73,82,16,20,30,13,15,17,19,35,71 ./driver.sh
+// BLOCK_IOCTL=79,80,84,98,11,12,78,85,73,82,16,20,30,13,15,17,19,35,71 EXIT_IOCTL=106 NVDRIVER=1 ./driver.sh 
 
-// BLOCK_IOCTL=11,12,78,85,73,82,16,20,30,13,15,17,19,35,71 EXIT_IOCTL=106 NVDRIVER=1 ./driver.sh
 int main(int argc, char *argv[]) {
   int work_submit_token = 0;
   if (!getenv("NVDRIVER")) {
@@ -237,7 +234,7 @@ int main(int argc, char *argv[]) {
     NV2080_ALLOC_PARAMETERS ap2080 = {0};
     NvHandle subdevice = alloc_object(fd_ctl, NV20_SUBDEVICE_0, root, device, &ap2080);
     NvHandle usermode = alloc_object(fd_ctl, TURING_USERMODE_A, root, subdevice, NULL);
-    void *gpu_mmio_ptr = mmap_object(fd_ctl, root, subdevice, usermode, (void*)0xfbbb0000, 0x10000, NULL, 2);
+    void *gpu_mmio_ptr = mmap_object(fd_ctl, root, subdevice, usermode, 0x10000, NULL, 2);
     assert(gpu_mmio_ptr == (void *)0x13370000);
 
     NV_VASPACE_ALLOCATION_PARAMETERS vap = {0};
@@ -246,8 +243,8 @@ int main(int argc, char *argv[]) {
     NvHandle vaspace = alloc_object(fd_ctl, FERMI_VASPACE_A, root, device, &vap);
 
     {
+      // this creates channels 9,10,11,12
       UVM_REGISTER_GPU_PARAMS p = {0};
-      // TODO: where do numbers come from?
       memcpy(&p.gpu_uuid.uuid, GPU_UUID, 0x10);
       p.rmCtrlFd = 0xffffffff;
       int ret = ioctl(fd_uvm, UVM_REGISTER_GPU, &p);
@@ -260,7 +257,6 @@ int main(int argc, char *argv[]) {
     }
     {
       UVM_REGISTER_GPU_VASPACE_PARAMS p = {0};
-      // TODO: where do numbers come from?
       memcpy(&p.gpuUuid.uuid, GPU_UUID, 0x10);
       p.rmCtrlFd = fd_ctl;
       p.hClient = root;
@@ -271,21 +267,26 @@ int main(int argc, char *argv[]) {
 
     NV_CHANNEL_GROUP_ALLOCATION_PARAMETERS cgap = {0};
     cgap.engineType = NV2080_ENGINE_TYPE_GRAPHICS;
+    //cgap.hVASpace = vaspace;
     NvHandle channel_group = alloc_object(fd_ctl, KEPLER_CHANNEL_GROUP_A, root, device, &cgap);
+
+    NvHandle mem = heap_alloc(fd_ctl, fd_uvm, root, device, subdevice, (void *)0x200400000, 0x200000, NVOS32_ALLOC_FLAGS_IGNORE_BANK_PLACEMENT | NVOS32_ALLOC_FLAGS_ALIGNMENT_FORCE | NVOS32_ALLOC_FLAGS_MEMORY_HANDLE_PROVIDED | NVOS32_ALLOC_FLAGS_MAP_NOT_REQUIRED | NVOS32_ALLOC_FLAGS_PERSISTENT_VIDMEM);
+    NvHandle mem_error = 0;
+    //heap_alloc(fd_ctl, fd_uvm, root, device, subdevice, (void *)0x200600000, 0x3000000, 0xc001);
+    //NvHandle mem_error = heap_alloc(fd_ctl, fd_uvm, root, device, subdevice, (void *)0x200600000, 0x1000, 0);
 
     NV_CTXSHARE_ALLOCATION_PARAMETERS cap = {0};
     cap.hVASpace = vaspace;
-    cap.flags = 1;
+    cap.flags = NV_CTXSHARE_ALLOCATION_FLAGS_SUBCONTEXT_ASYNC;
     NvHandle share = alloc_object(fd_ctl, FERMI_CONTEXT_SHARE_A, root, channel_group, &cap);
-    NvHandle mem = heap_alloc(fd_ctl, fd_uvm, root, device, subdevice, (void *)0x200400000, 0x200000);
-    //NvHandle mem_error = heap_alloc(fd_ctl, fd_uvm, root, device, (void *)0x200800000, 0x1000);
 
-    // BLOCK_IOCTL=98,11,12,78,85,73,82,16,20,30,13,15,17,19,35,71 EXIT_IOCTL=106 NVDRIVER=1 ./driver.sh  
     NV_CHANNELGPFIFO_ALLOCATION_PARAMETERS fifoap = {0};
-    //fifoap.hObjectError = mem_error;
+    fifoap.hObjectError = mem_error;
     fifoap.hObjectBuffer = mem;
     fifoap.gpFifoOffset = 0x200400000;
     fifoap.gpFifoEntries = 0x400;
+    // TSG channels can't use an explicit vaspace
+    //fifoap.hVASpace = vaspace;
     fifoap.hUserdMemory[0] = mem;
     fifoap.userdOffset[0] = 0x2000;
     NvHandle gpfifo = alloc_object(fd_ctl, AMPERE_CHANNEL_GPFIFO_A, root, channel_group, &fifoap);
