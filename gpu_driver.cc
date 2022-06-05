@@ -31,32 +31,24 @@
 //void gpu_memset(int subc, void *)
 
 void gpu_setup(struct nouveau_pushbuf *push) {
-  BEGIN_NVC0(push, 1, NVC6C0_SET_OBJECT, 1);
+  /*BEGIN_NVC0(push, 1, NVC6C0_SET_OBJECT, 1);
   PUSH_DATA(push, AMPERE_COMPUTE_B);
   BEGIN_NVC0(push, 1, NVC6C0_NO_OPERATION, 1);
-  PUSH_DATA(push, 0);
+  PUSH_DATA(push, 0);*/
 
-  //BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_SHARED_MEMORY_WINDOW_A, 1); PUSH_DATAh(push, 0x00007FFFF4000000);
-  //BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_SHARED_MEMORY_WINDOW_B, 1); PUSH_DATAl(push, 0x00007FFFF4000000);
   BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_SHARED_MEMORY_WINDOW_A, 1); PUSH_DATAh(push, 0x00007FFFF4000000);
   BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_SHARED_MEMORY_WINDOW_B, 1); PUSH_DATAl(push, 0x00007FFFF4000000);
 
   //BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_LOCAL_MEMORY_A, 1); PUSH_DATAh(push, 0x00007FFFC0000000);
   //BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_LOCAL_MEMORY_B, 1); PUSH_DATAl(push, 0x00007FFFC0000000);
-  BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_LOCAL_MEMORY_A, 1); PUSH_DATAh(push, 0);
-  BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_LOCAL_MEMORY_B, 1); PUSH_DATAl(push, 0);
 
-  //BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_A, 1); PUSH_DATAh(push, 0x004B0000);
-  //BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_B, 1); PUSH_DATAl(push, 0x004B0000);
   BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_A, 1); PUSH_DATAh(push, 0x004B0000);
   BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_B, 1); PUSH_DATAl(push, 0x004B0000);
 
   //BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_LOCAL_MEMORY_WINDOW_A, 1); PUSH_DATAh(push, 0x00007FFFF2000000);
   //BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_LOCAL_MEMORY_WINDOW_B, 1); PUSH_DATAl(push, 0x00007FFFF2000000);
-  BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_LOCAL_MEMORY_WINDOW_A, 1); PUSH_DATAh(push, 0);
-  BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_LOCAL_MEMORY_WINDOW_B, 1); PUSH_DATAl(push, 0);
 
-  BEGIN_NVC0(push, 1, NVC6C0_SET_SPA_VERSION, 1);
+  /*BEGIN_NVC0(push, 1, NVC6C0_SET_SPA_VERSION, 1);
   PUSH_DATAl(push, 0x00000806);
   BEGIN_NVC0(push, 1, NVC6C0_SET_CWD_REF_COUNTER, 1);
   PUSH_DATAl(push, 0x000F0000);
@@ -67,7 +59,7 @@ void gpu_setup(struct nouveau_pushbuf *push) {
   PUSH_DATAl(push, 0);
   PUSH_DATAl(push, 0x001E0000);
   BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_C, 1);
-  PUSH_DATAl(push, 0x28);
+  PUSH_DATAl(push, 0x28);*/
 }
 
 // NVC6B5 = AMPERE_DMA_COPY_A
@@ -195,13 +187,13 @@ NvHandle alloc_object(int fd_ctl, NvV32 hClass, NvHandle root, NvHandle parent, 
   return p.hObjectNew;
 }
 
-void *mmap_object(int fd_ctl, NvHandle root, NvHandle subdevice, NvHandle usermode, int length, void *target, int flags) {
+void *mmap_object(int fd_ctl, NvHandle root, NvHandle device, NvHandle memory, int length, void *target, int flags) {
   int fd_dev0 = open64("/dev/nvidia0", O_RDWR | O_CLOEXEC);
   {
     nv_ioctl_nvos33_parameters_with_fd p = {0};
     p.params.hClient = root;
-    p.params.hDevice = subdevice;
-    p.params.hMemory = usermode;
+    p.params.hDevice = device;
+    p.params.hMemory = memory;
     //p.params.pLinearAddress = pLinearAddress;
     p.params.length = length;
     p.params.flags = flags;
@@ -290,7 +282,7 @@ int main(int argc, char *argv[]) {
     int fd_dev0 = open64("/dev/nvidia0", O_RDWR | O_CLOEXEC);
     NV0080_ALLOC_PARAMETERS ap0080 = {0};
     ap0080.hClientShare = root;
-    ap0080.vaMode = 2;
+    ap0080.vaMode = NV_DEVICE_ALLOCATION_VAMODE_MULTIPLE_VASPACES;
     NvHandle device = alloc_object(fd_ctl, NV01_DEVICE_0, root, root, &ap0080);
     int fd_dev1 = open64("/dev/nvidia0", O_RDWR | O_CLOEXEC);
     NV2080_ALLOC_PARAMETERS ap2080 = {0};
@@ -402,13 +394,11 @@ int main(int argc, char *argv[]) {
 
   printf("**************** INIT DONE ****************\n");
   clear_gpu_ctrl();
+  uint64_t gpu_base = 0x200500000;
 
   // set up command queue
-  // TODO: don't hardcode addresses
-  uint64_t cmdq = 0x200480000;
-  struct nouveau_pushbuf push_local = {
-    .cur = (uint32_t*)cmdq
-  };
+  uint64_t cmdq = gpu_base+0x6000;
+  struct nouveau_pushbuf push_local = { .cur = (uint32_t*)cmdq };
   struct nouveau_pushbuf *push = &push_local;
 
   // load program
@@ -420,19 +410,16 @@ int main(int argc, char *argv[]) {
   //memcpy(program, trivial, sizeof(trivial));
   printf("loaded program\n");
 
-  uint64_t gpu_base = 0x200500000;
   gpu_setup(push);
   gpu_memcpy(push, gpu_base+4, (const uint32_t*)"\xaa\xbb\xcc\xdd", 4);
 
   struct {
     uint64_t addr;
-    uint32_t value1;
-    uint32_t value2;
+    uint32_t value;
   } args;
 
   args.addr = gpu_base;
-  args.value1 = 0x1337-0x200;
-  args.value2 = 0x1337-0x100;
+  args.value = 0x1337;
 
   // load program and args
   gpu_memcpy(push, gpu_base+0x1000, program, 0x180);
@@ -440,7 +427,7 @@ int main(int argc, char *argv[]) {
   printf("memcpyed program into gpu memory\n");
 
   // run program
-  gpu_compute(push, gpu_base+0x4000, gpu_base+0x1000, gpu_base+0x2000, 0x188);
+  gpu_compute(push, gpu_base+0x4000, gpu_base+0x1000, gpu_base+0x2000, 0x160+sizeof(args));
 
   // do this too
   gpu_dma_copy(push, gpu_base+0x14, gpu_base+0, 8);
@@ -459,9 +446,6 @@ int main(int argc, char *argv[]) {
   int cnt = 0; while (!*done && cnt<1000) { usleep(1000); cnt++; }
   usleep(10*1000);
   printf("ran to queue %d\n", *done);
-  //hexdump((void*)0x200400000, 0x100);
-  //hexdump((void*)0x200402080, 0x100);
-  //hexdump((void*)0x203600000, 0x100);
 
   // dump ram to check
   printf("pc %p\n", (void*)gpu_base);
@@ -469,8 +453,8 @@ int main(int argc, char *argv[]) {
   printf("error\n");
 
   // NvNotification
-  // ROBUST_CHANNEL_GR_EXCEPTION
-  // ROBUST_CHANNEL_FIFO_ERROR_MMU_ERR_FLT
-  // ROBUST_CHANNEL_GR_CLASS_ERROR
+  // ROBUST_CHANNEL_GR_EXCEPTION = 0xd
+  // ROBUST_CHANNEL_FIFO_ERROR_MMU_ERR_FLT = 0x1f
+  // ROBUST_CHANNEL_GR_CLASS_ERROR = 0x45
   hexdump((void*)mem_error, 0x40);
 }
