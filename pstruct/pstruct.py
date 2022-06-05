@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import os
 
 support = [
@@ -25,10 +26,46 @@ def nprint(node, pt=""):
   for n in node.get_children():
     nprint(n, " "+pt)
 
+typeref_to_printf = {
+  "NvHandle": "%x",
+  "NvU64": "0x%llx",
+  "NvU32": "0x%x",
+  "NvV32": "0x%x",
+  "NvBool": "%d"
+}
+
+def print_field(field):
+  assert field.kind == ci.CursorKind.FIELD_DECL
+  typeref = None
+  is_array = False
+  for n in field.get_children():
+    if n.kind == ci.CursorKind.TYPE_REF:
+      typeref = n.spelling
+    if n.kind == ci.CursorKind.INTEGER_LITERAL:
+      is_array = True
+  #print(typeref, field.spelling)
+  if is_array:
+    print(f'  printf("{field.spelling}: <{typeref} is array> ");')
+  else:
+    if typeref in typeref_to_printf:
+      print(f'  printf("{field.spelling}: {typeref_to_printf[typeref]} ", p->{field.spelling});')
+    else:
+      print(f'  printf("{field.spelling}: <{typeref} not parsed> ");')
+
 tu = index.parse("include.cc", args = ["-I../open-gpu-kernel-modules/src/common/sdk/nvidia/inc"])
 walk(tu.cursor)
 for s in support:
-  print("******", s)
-  nprint(lookup[s])
+  print("// ******", s)
+  #nprint(lookup[s])
+  print(f"void pprint({s} *p)", "{")
+  print(f'  printf("    {s} ");')
+  i = 0
+  for x in list(lookup[s].get_children())[0].get_children():
+    #if i%4 == 0 and i!=0:
+    print('  printf("\\n");')
+    print_field(x)
+    i += 1
+  print('  printf("\\n");')
+  print("}")
 
 exit(0)

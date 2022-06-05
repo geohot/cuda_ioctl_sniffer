@@ -329,6 +329,8 @@ int main(int argc, char *argv[]) {
     fifoap.userdOffset[0] = 0x2000;
     NvHandle gpfifo = alloc_object(fd_ctl, AMPERE_CHANNEL_GPFIFO_A, root, channel_group, &fifoap);
     NvHandle compute = alloc_object(fd_ctl, AMPERE_COMPUTE_B, root, gpfifo, NULL);
+
+    exit(0);
     // NOTE: dma copy works without this
     //NvHandle dmacopy = alloc_object(fd_ctl, AMPERE_DMA_COPY_B, root, gpfifo, NULL);
 

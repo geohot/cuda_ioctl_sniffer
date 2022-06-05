@@ -35,6 +35,8 @@
 #include "src/common/sdk/nvidia/inc/class/cl0080.h"
 #include "rs.h"
 
+#include "out/printer.h"
+
 #include <map>
 std::map<int, std::string> files;
 
@@ -345,26 +347,29 @@ int ioctl(int filedes, unsigned long request, void *argp) {
         if (p->pAllocParms != NULL) {
           // open-gpu-kernel-modules/src/nvidia/src/kernel/rmapi/resource_list.h
           if (p->hClass == KEPLER_CHANNEL_GROUP_A) {
-            NV_CHANNEL_GROUP_ALLOCATION_PARAMETERS *pAllocParams = (NV_CHANNEL_GROUP_ALLOCATION_PARAMETERS *)p->pAllocParms;
+            /*NV_CHANNEL_GROUP_ALLOCATION_PARAMETERS *pAllocParams = (NV_CHANNEL_GROUP_ALLOCATION_PARAMETERS *)p->pAllocParms;
             printf("hObjectError: %x\n", pAllocParams->hObjectError);
             printf("hObjectEccError: %x\n", pAllocParams->hObjectEccError);
             printf("hVASpace: %x\n", pAllocParams->hVASpace);
             printf("engineType: %x\n", pAllocParams->engineType);
-            printf("bIsCallingContextVgpuPlugin: %d\n", pAllocParams->bIsCallingContextVgpuPlugin);
+            printf("bIsCallingContextVgpuPlugin: %d\n", pAllocParams->bIsCallingContextVgpuPlugin);*/
+            pprint((NV_CHANNEL_GROUP_ALLOCATION_PARAMETERS *)p->pAllocParms);
           } else if (p->hClass == FERMI_CONTEXT_SHARE_A) {
-            NV_CTXSHARE_ALLOCATION_PARAMETERS *pAllocParams = (NV_CTXSHARE_ALLOCATION_PARAMETERS *)p->pAllocParms;
+            /*NV_CTXSHARE_ALLOCATION_PARAMETERS *pAllocParams = (NV_CTXSHARE_ALLOCATION_PARAMETERS *)p->pAllocParms;
             printf("hVASpace: %x\n", pAllocParams->hVASpace);
             printf("flags: %x\n", pAllocParams->flags);
-            printf("subctxId: %x\n", pAllocParams->subctxId);
+            printf("subctxId: %x\n", pAllocParams->subctxId);*/
+            pprint((NV_CTXSHARE_ALLOCATION_PARAMETERS *)p->pAllocParms);
           } else if (p->hClass == FERMI_VASPACE_A) {
-            NV_VASPACE_ALLOCATION_PARAMETERS *pAllocParams = (NV_VASPACE_ALLOCATION_PARAMETERS *)p->pAllocParms;
+            /*NV_VASPACE_ALLOCATION_PARAMETERS *pAllocParams = (NV_VASPACE_ALLOCATION_PARAMETERS *)p->pAllocParms;
             printf("index: %x\n", pAllocParams->index);
             printf("flags: %x\n", pAllocParams->flags);
             printf("vaSize: %llx\n", pAllocParams->vaSize);
             printf("vaStartInternal: %llx\n", pAllocParams->vaStartInternal);
             printf("vaLimitInternal: %llx\n", pAllocParams->vaLimitInternal);
             printf("bigPageSize: %x\n", pAllocParams->bigPageSize);
-            printf("vaBase: %llx\n", pAllocParams->vaBase);
+            printf("vaBase: %llx\n", pAllocParams->vaBase);*/
+            pprint((NV_VASPACE_ALLOCATION_PARAMETERS *)p->pAllocParms);
           } else if (p->hClass == NV01_DEVICE_0) {
             NV0080_ALLOC_PARAMETERS *pAllocParams = (NV0080_ALLOC_PARAMETERS *)p->pAllocParms;
             printf("deviceId: %x\n", pAllocParams->deviceId);
@@ -377,7 +382,7 @@ int ioctl(int filedes, unsigned long request, void *argp) {
             printf("vaLimitInternal: %llx\n", pAllocParams->vaLimitInternal);
             printf("vaMode: %x\n", pAllocParams->vaMode);
           } else if (p->hClass == AMPERE_CHANNEL_GPFIFO_A) {
-            NV_CHANNELGPFIFO_ALLOCATION_PARAMETERS *pAllocParams = (NV_CHANNELGPFIFO_ALLOCATION_PARAMETERS *)p->pAllocParms;
+            /*NV_CHANNELGPFIFO_ALLOCATION_PARAMETERS *pAllocParams = (NV_CHANNELGPFIFO_ALLOCATION_PARAMETERS *)p->pAllocParms;
             printf("hObjectError: %x\n", pAllocParams->hObjectError);
             printf("hObjectBuffer: %x\n", pAllocParams->hObjectBuffer);
             printf("gpFifoOffset: %llx\n", pAllocParams->gpFifoOffset);
@@ -407,7 +412,8 @@ int ioctl(int filedes, unsigned long request, void *argp) {
             DMP(pAllocParams->ramfcMem);
             DMP(pAllocParams->mthdbufMem);
             DMP(pAllocParams->errorNotifierMem);
-            DMP(pAllocParams->eccErrorNotifierMem);
+            DMP(pAllocParams->eccErrorNotifierMem);*/
+            pprint((NV_CHANNELGPFIFO_ALLOCATION_PARAMETERS *)p->pAllocParms);
           } else {
             hexdump(p->pAllocParms, 0x40);
           }
