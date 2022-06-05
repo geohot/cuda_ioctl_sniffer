@@ -177,6 +177,7 @@ NvHandle alloc_object(int fd_ctl, NvV32 hClass, NvHandle root, NvHandle parent, 
   p.pAllocParms = params;
   int ret = ioctl(fd_ctl, __NV_IOWR(NV_ESC_RM_ALLOC, p), &p);
   assert(ret == 0);
+  assert(p.status == 0);
   return p.hObjectNew;
 }
 
@@ -193,6 +194,7 @@ void *mmap_object(int fd_ctl, NvHandle root, NvHandle device, NvHandle memory, i
     p.fd = fd_dev0;
     int ret = ioctl(fd_ctl, __NV_IOWR(NV_ESC_RM_MAP_MEMORY, p), &p);
     assert(ret == 0);
+    assert(p.params.status == 0);
   }
   return mmap64(target, length, PROT_READ|PROT_WRITE, MAP_SHARED | (target != NULL ? MAP_FIXED : 0), fd_dev0, 0);
 }
@@ -211,18 +213,21 @@ NvHandle heap_alloc(int fd_ctl, int fd_uvm, NvHandle root, NvHandle device, NvHa
     asz->type = type;
     int ret = ioctl(fd_ctl, __NV_IOWR(NV_ESC_RM_VID_HEAP_CONTROL, p), &p);
     mem = asz->hMemory;
+    assert(p.status == 0);
   }
   void *local_ptr = mmap_object(fd_ctl, root, subdevice, mem, length, addr, mmap_flags);
   assert(local_ptr == (void *)addr);
 
-  {
+  if (type == 0) {
     UVM_CREATE_EXTERNAL_RANGE_PARAMS p = {0};
     p.base = (NvU64)local_ptr;
     p.length = length;
     int ret = ioctl(fd_uvm, UVM_CREATE_EXTERNAL_RANGE, &p);
     assert(ret == 0);
+    assert(p.rmStatus == 0);
   }
-  {
+
+  if (type == 0) {
     UVM_MAP_EXTERNAL_ALLOCATION_PARAMS p = {0};
     p.base = (NvU64)local_ptr;
     p.length = length;
@@ -234,6 +239,8 @@ NvHandle heap_alloc(int fd_ctl, int fd_uvm, NvHandle root, NvHandle device, NvHa
     p.perGpuAttributes[0].gpuMappingType = 1;
     int ret = ioctl(fd_uvm, UVM_MAP_EXTERNAL_ALLOCATION, &p);
     assert(ret == 0);
+    // this fails for the error map, it's fine
+    assert(p.rmStatus == 0);
   }
   return mem;
 }
@@ -247,6 +254,7 @@ void rm_control(int fd_ctl, int cmd, NvHandle client, NvHandle object, void *par
   p.paramsSize = paramsize;
   int ret = ioctl(fd_ctl, __NV_IOWR(NV_ESC_RM_CONTROL, p), &p);
   assert(ret == 0);
+  assert(p.status == 0);
 }
 
 // BLOCK_IOCTL=79,80,84,98,11,12,78,85,73,82,16,20,30,13,15,17,19,35,71 EXIT_IOCTL=106 NVDRIVER=1 ./driver.sh 
@@ -260,24 +268,12 @@ int main(int argc, char *argv[]) {
     int fd_ctl = open64("/dev/nvidiactl", O_RDWR);
     NvHandle root = alloc_object(fd_ctl, NV01_ROOT_CLIENT, 0, 0, NULL);
     int fd_uvm = open64("/dev/nvidia-uvm", O_RDWR);
-    {
-      UVM_INITIALIZE_PARAMS p = {0};
-      int ret = ioctl(fd_uvm, UVM_INITIALIZE, &p);
-      assert(ret == 0);
-    }
-    {
-      UVM_PAGEABLE_MEM_ACCESS_PARAMS p = {0};
-      int ret = ioctl(fd_uvm, UVM_PAGEABLE_MEM_ACCESS, &p);
-      assert(ret == 0);
-    }
-
 
     int fd_dev0 = open64("/dev/nvidia0", O_RDWR | O_CLOEXEC);
     NV0080_ALLOC_PARAMETERS ap0080 = {0};
     ap0080.hClientShare = root;
     ap0080.vaMode = NV_DEVICE_ALLOCATION_VAMODE_MULTIPLE_VASPACES;
     NvHandle device = alloc_object(fd_ctl, NV01_DEVICE_0, root, root, &ap0080);
-    int fd_dev1 = open64("/dev/nvidia0", O_RDWR | O_CLOEXEC);
     NV2080_ALLOC_PARAMETERS ap2080 = {0};
     NvHandle subdevice = alloc_object(fd_ctl, NV20_SUBDEVICE_0, root, device, &ap2080);
     NvHandle usermode = alloc_object(fd_ctl, TURING_USERMODE_A, root, subdevice, NULL);
@@ -289,6 +285,16 @@ int main(int argc, char *argv[]) {
     vap.vaBase = 0x1000;
     NvHandle vaspace = alloc_object(fd_ctl, FERMI_VASPACE_A, root, device, &vap);
 
+    {
+      UVM_INITIALIZE_PARAMS p = {0};
+      int ret = ioctl(fd_uvm, UVM_INITIALIZE, &p);
+      assert(ret == 0);
+    }
+    /*{
+      UVM_PAGEABLE_MEM_ACCESS_PARAMS p = {0};
+      int ret = ioctl(fd_uvm, UVM_PAGEABLE_MEM_ACCESS, &p);
+      assert(ret == 0);
+    }*/
     {
       // this creates channels 9,10,11,12
       UVM_REGISTER_GPU_PARAMS p = {0};
@@ -450,4 +456,6 @@ int main(int argc, char *argv[]) {
   // ROBUST_CHANNEL_FIFO_ERROR_MMU_ERR_FLT = 0x1f
   // ROBUST_CHANNEL_GR_CLASS_ERROR = 0x45
   hexdump((void*)mem_error, 0x40);
+
+  //while(1) sleep(1);
 }

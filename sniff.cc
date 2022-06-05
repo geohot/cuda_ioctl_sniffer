@@ -448,7 +448,7 @@ int ioctl(int filedes, unsigned long request, void *argp) {
     if (getenv("DMESG")) { usleep(50*1000); system("sudo dmesg -c"); }
   } else {
     // non nvidia ioctl
-    printf("non nvidia ioctl %d %s 0x%x %p\n", filedes, files[filedes].c_str(), request, argp);
+    printf("non nvidia ioctl %d %s ", filedes, files[filedes].c_str());
     if (strcmp(files[filedes].c_str(), "/dev/nvidia-uvm") == 0) {
       //printf("UVM BULLSHIT BLOCKED\n");
       ret = my_ioctl(filedes, request, argp);
@@ -522,6 +522,7 @@ int ioctl(int filedes, unsigned long request, void *argp) {
         }
       }
     } else {
+      printf("0x%x %p\n", request, argp);
       ret = my_ioctl(filedes, request, argp);
     }
   }
