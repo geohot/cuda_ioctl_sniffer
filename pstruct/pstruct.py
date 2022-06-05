@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import sys
 
 support = [
   "NV_CHANNEL_GROUP_ALLOCATION_PARAMETERS",
@@ -7,6 +8,14 @@ support = [
   "NV_VASPACE_ALLOCATION_PARAMETERS",
   "NV0080_ALLOC_PARAMETERS",
   "NV_CHANNELGPFIFO_ALLOCATION_PARAMETERS",
+  "NVOS32_PARAMETERS",
+  "NV2080_ALLOC_PARAMETERS",
+  "UVM_CREATE_EXTERNAL_RANGE_PARAMS",
+  "UVM_MAP_EXTERNAL_ALLOCATION_PARAMS",
+  "UVM_CREATE_RANGE_GROUP_PARAMS",
+  "UVM_REGISTER_GPU_VASPACE_PARAMS",
+  "UVM_REGISTER_GPU_PARAMS",
+  "UVM_INITIALIZE_PARAMS"
 ]
 
 import clang.cindex as ci
@@ -28,13 +37,22 @@ def nprint(node, pt=""):
 
 typeref_to_printf = {
   "NvHandle": "%x",
+  "NV_STATUS": "%x",
   "NvU64": "0x%llx",
   "NvU32": "0x%x",
+  "NvS32": "%d",
+  "NvS16": "%d",
   "NvV32": "0x%x",
   "NvBool": "%d"
 }
 
 def print_field(field):
+  ll = 30
+  if field.kind == ci.CursorKind.UNION_DECL:
+    print(f'  printf("%{ll}s: <union> ", "{field.spelling}");')
+    return
+  if field.kind != ci.CursorKind.FIELD_DECL:
+    print(field.kind, file=sys.stderr)
   assert field.kind == ci.CursorKind.FIELD_DECL
   typeref = None
   is_array = False
@@ -45,19 +63,24 @@ def print_field(field):
       is_array = True
   #print(typeref, field.spelling)
   if is_array:
-    print(f'  printf("{field.spelling}: <{typeref} is array> ");')
+    print(f'  printf("%{ll}s: <{typeref} is array> ", "{field.spelling}");')
   else:
     if typeref in typeref_to_printf:
-      print(f'  printf("{field.spelling}: {typeref_to_printf[typeref]} ", p->{field.spelling});')
+      print(f'  printf("%{ll}s: {typeref_to_printf[typeref]} ", "{field.spelling}", p->{field.spelling});')
     else:
-      print(f'  printf("{field.spelling}: <{typeref} not parsed> ");')
+      print(f'  printf("%{ll}s: <{typeref} not parsed> ", "{field.spelling}");')
 
-tu = index.parse("include.cc", args = ["-I../open-gpu-kernel-modules/src/common/sdk/nvidia/inc"])
+tu = index.parse("include.cc",
+  args = [
+    "-I../open-gpu-kernel-modules/src/common/sdk/nvidia/inc",
+    "-I../open-gpu-kernel-modules/kernel-open/nvidia-uvm",
+  ])
 walk(tu.cursor)
 for s in support:
   print("// ******", s)
   #nprint(lookup[s])
   print(f"void pprint({s} *p)", "{")
+  #print(f'  return;')
   print(f'  printf("    {s} ");')
   i = 0
   for x in list(lookup[s].get_children())[0].get_children():

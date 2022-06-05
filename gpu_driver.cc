@@ -31,6 +31,8 @@
 #include <unistd.h>
 #include <sys/mman.h>
 
+#include "tc_context.h"
+
 //void gpu_memset(int subc, void *)
 
 void gpu_setup(struct nouveau_pushbuf *push) {
@@ -249,120 +251,11 @@ int main(int argc, char *argv[]) {
   void *gpu_mmio_ptr = (void *)0x13370000;
 
   if (!getenv("NVDRIVER")) {
-    int fd_ctl = open64("/dev/nvidiactl", O_RDWR);
-    NvHandle root = alloc_object(fd_ctl, NV01_ROOT_CLIENT, 0, 0, NULL);
-    int fd_uvm = open64("/dev/nvidia-uvm", O_RDWR);
-
-    int fd_dev0 = open64("/dev/nvidia0", O_RDWR | O_CLOEXEC);
-    NV0080_ALLOC_PARAMETERS ap0080 = {0};
-    ap0080.hClientShare = root;
-    ap0080.vaMode = NV_DEVICE_ALLOCATION_VAMODE_MULTIPLE_VASPACES;
-    NvHandle device = alloc_object(fd_ctl, NV01_DEVICE_0, root, root, &ap0080);
-    NV2080_ALLOC_PARAMETERS ap2080 = {0};
-    NvHandle subdevice = alloc_object(fd_ctl, NV20_SUBDEVICE_0, root, device, &ap2080);
-    NvHandle usermode = alloc_object(fd_ctl, TURING_USERMODE_A, root, subdevice, NULL);
-    gpu_mmio_ptr = mmap_object(fd_ctl, root, subdevice, usermode, 0x10000, NULL, 2);
-    //assert(gpu_mmio_ptr == (void *)0x13370000);
-
-    NV_VASPACE_ALLOCATION_PARAMETERS vap = {0};
-    vap.flags = NV_VASPACE_ALLOCATION_FLAGS_ENABLE_PAGE_FAULTING | NV_VASPACE_ALLOCATION_FLAGS_IS_EXTERNALLY_OWNED;
-    vap.vaBase = 0x1000;
-    NvHandle vaspace = alloc_object(fd_ctl, FERMI_VASPACE_A, root, device, &vap);
-
-    {
-      UVM_INITIALIZE_PARAMS p = {0};
-      int ret = ioctl(fd_uvm, UVM_INITIALIZE, &p);
-      assert(ret == 0);
-    }
-    /*{
-      UVM_PAGEABLE_MEM_ACCESS_PARAMS p = {0};
-      int ret = ioctl(fd_uvm, UVM_PAGEABLE_MEM_ACCESS, &p);
-      assert(ret == 0);
-    }*/
-    {
-      // this creates channels 9,10,11,12
-      UVM_REGISTER_GPU_PARAMS p = {0};
-      memcpy(&p.gpu_uuid.uuid, GPU_UUID, 0x10);
-      p.rmCtrlFd = 0xffffffff;
-      int ret = ioctl(fd_uvm, UVM_REGISTER_GPU, &p);
-      assert(ret == 0);
-    }
-    /*{
-      UVM_CREATE_RANGE_GROUP_PARAMS p = {0};
-      int ret = ioctl(fd_uvm, UVM_CREATE_RANGE_GROUP, &p);
-      assert(ret == 0);
-    }*/
-    {
-      UVM_REGISTER_GPU_VASPACE_PARAMS p = {0};
-      memcpy(&p.gpuUuid.uuid, GPU_UUID, 0x10);
-      p.rmCtrlFd = fd_ctl;
-      p.hClient = root;
-      p.hVaSpace = vaspace;
-      int ret = ioctl(fd_uvm, UVM_REGISTER_GPU_VASPACE, &p);
-      assert(ret == 0);
-    }
-
-    NvHandle mem = heap_alloc(fd_ctl, fd_uvm, root, device, subdevice, (void *)0x200400000, 0x200000,
-      NVOS32_ALLOC_FLAGS_IGNORE_BANK_PLACEMENT | NVOS32_ALLOC_FLAGS_ALIGNMENT_FORCE | NVOS32_ALLOC_FLAGS_MEMORY_HANDLE_PROVIDED | NVOS32_ALLOC_FLAGS_MAP_NOT_REQUIRED | NVOS32_ALLOC_FLAGS_PERSISTENT_VIDMEM,
-      0xc0000, NVOS32_TYPE_IMAGE);
-    NvHandle mem_error_handle = heap_alloc(fd_ctl, fd_uvm, root, device, subdevice, mem_error, 0x1000, 0xc001, 0, NVOS32_TYPE_NOTIFIER);
-
-    NV_CHANNEL_GROUP_ALLOCATION_PARAMETERS cgap = {0};
-    cgap.engineType = NV2080_ENGINE_TYPE_GRAPHICS;
-    //cgap.hVASpace = vaspace;
-    NvHandle channel_group = alloc_object(fd_ctl, KEPLER_CHANNEL_GROUP_A, root, device, &cgap);
-
-    NV_CTXSHARE_ALLOCATION_PARAMETERS cap = {0};
-    cap.hVASpace = vaspace;
-    cap.flags = NV_CTXSHARE_ALLOCATION_FLAGS_SUBCONTEXT_ASYNC;
-    NvHandle share = alloc_object(fd_ctl, FERMI_CONTEXT_SHARE_A, root, channel_group, &cap);
-
-    NV_CHANNELGPFIFO_ALLOCATION_PARAMETERS fifoap = {0};
-    fifoap.hObjectError = mem_error_handle;
-    fifoap.hObjectBuffer = mem;
-    fifoap.gpFifoOffset = 0x200400000;
-    fifoap.gpFifoEntries = 0x400;
-    fifoap.hContextShare = share;
-    // TSG channels can't use an explicit vaspace
-    //fifoap.hVASpace = vaspace;
-    fifoap.hUserdMemory[0] = mem;
-    fifoap.userdOffset[0] = 0x2000;
-    NvHandle gpfifo = alloc_object(fd_ctl, AMPERE_CHANNEL_GPFIFO_A, root, channel_group, &fifoap);
-    NvHandle compute = alloc_object(fd_ctl, AMPERE_COMPUTE_B, root, gpfifo, NULL);
-
-    exit(0);
-    // NOTE: dma copy works without this
-    //NvHandle dmacopy = alloc_object(fd_ctl, AMPERE_DMA_COPY_B, root, gpfifo, NULL);
-
-    // this is the value you write to the doorbell register
-    {
-      NVC36F_CTRL_CMD_GPFIFO_GET_WORK_SUBMIT_TOKEN_PARAMS sp = {0};
-      sp.workSubmitToken = -1;
-      rm_control(fd_ctl, NVC36F_CTRL_CMD_GPFIFO_GET_WORK_SUBMIT_TOKEN, root, gpfifo, &sp, sizeof(sp));
-      work_submit_token = sp.workSubmitToken;
-    }
-
-    // register the FIFO with UVM
-    {
-      UVM_REGISTER_CHANNEL_PARAMS p = {0};
-      memcpy(&p.gpuUuid.uuid, GPU_UUID, 0x10);
-      p.rmCtrlFd = fd_ctl;
-      p.hClient = root;
-      p.hChannel = gpfifo;
-      // TODO: is this right?
-      p.base = 0x203600000;
-      p.length = 0xf6e000;
-      int ret = ioctl(fd_uvm, UVM_REGISTER_CHANNEL, &p);
-      assert(ret == 0);
-    }
-
-    // enable the FIFO
-    {
-      NVA06C_CTRL_GPFIFO_SCHEDULE_PARAMS sp = {0};
-      sp.bEnable = true;
-      rm_control(fd_ctl, NVA06C_CTRL_CMD_GPFIFO_SCHEDULE, root, channel_group, &sp, sizeof(sp));
-    }
-
+    TcContext ctx;
+    ctx.init();
+    mem_error = ctx.mem_error;
+    work_submit_token = ctx.work_submit_token;
+    gpu_mmio_ptr = ctx.gpu_mmio_ptr;
   } else {
     // our GPU driver doesn't support init. use CUDA
     // TODO: remove linking to CUDA

@@ -33,6 +33,7 @@
 #include "src/common/sdk/nvidia/inc/ctrl/ctrla06f/ctrla06fgpfifo.h"
 #include "src/nvidia/generated/g_allclasses.h"
 #include "src/common/sdk/nvidia/inc/class/cl0080.h"
+#include "src/common/sdk/nvidia/inc/class/cl2080.h"
 #include "rs.h"
 
 #include "out/printer.h"
@@ -370,8 +371,10 @@ int ioctl(int filedes, unsigned long request, void *argp) {
             printf("bigPageSize: %x\n", pAllocParams->bigPageSize);
             printf("vaBase: %llx\n", pAllocParams->vaBase);*/
             pprint((NV_VASPACE_ALLOCATION_PARAMETERS *)p->pAllocParms);
+          } else if (p->hClass == NV20_SUBDEVICE_0) {
+            pprint((NV2080_ALLOC_PARAMETERS *)p->pAllocParms);
           } else if (p->hClass == NV01_DEVICE_0) {
-            NV0080_ALLOC_PARAMETERS *pAllocParams = (NV0080_ALLOC_PARAMETERS *)p->pAllocParms;
+            /*NV0080_ALLOC_PARAMETERS *pAllocParams = (NV0080_ALLOC_PARAMETERS *)p->pAllocParms;
             printf("deviceId: %x\n", pAllocParams->deviceId);
             printf("hClientShare: %x\n", pAllocParams->hClientShare);
             printf("hTargetClient: %x\n", pAllocParams->hTargetClient);
@@ -380,7 +383,8 @@ int ioctl(int filedes, unsigned long request, void *argp) {
             printf("vaSpaceSize: %x\n", pAllocParams->vaSpaceSize);
             printf("vaStartInternal: %llx\n", pAllocParams->vaStartInternal);
             printf("vaLimitInternal: %llx\n", pAllocParams->vaLimitInternal);
-            printf("vaMode: %x\n", pAllocParams->vaMode);
+            printf("vaMode: %x\n", pAllocParams->vaMode);*/
+            pprint((NV0080_ALLOC_PARAMETERS *)p->pAllocParms);
           } else if (p->hClass == AMPERE_CHANNEL_GPFIFO_A) {
             /*NV_CHANNELGPFIFO_ALLOCATION_PARAMETERS *pAllocParams = (NV_CHANNELGPFIFO_ALLOCATION_PARAMETERS *)p->pAllocParms;
             printf("hObjectError: %x\n", pAllocParams->hObjectError);
@@ -427,7 +431,9 @@ int ioctl(int filedes, unsigned long request, void *argp) {
       } break;
       case NV_ESC_RM_UPDATE_DEVICE_MAPPING_INFO: printf("NV_ESC_RM_UPDATE_DEVICE_MAPPING_INFO\n"); break;
       case NV_ESC_RM_VID_HEAP_CONTROL: {
-        NVOS32_PARAMETERS *p = (NVOS32_PARAMETERS *)argp;
+        pprint((NVOS32_PARAMETERS *)argp);
+        //pprint(((NVOS32_PARAMETERS *)argp)->data.AllocSize);
+        /*NVOS32_PARAMETERS *p = (NVOS32_PARAMETERS *)argp;
         printf("NV_ESC_RM_VID_HEAP_CONTROL %x\n", p->function);
         printf("    hRoot:   %x\n", p->hRoot);
         printf("    hObjectParent:   %x\n", p->hObjectParent);
@@ -445,7 +451,7 @@ int ioctl(int filedes, unsigned long request, void *argp) {
           printf("     size:   %llx (%.2f MB)\n", asz.size, asz.size/1e6);
           printf("   offset:   %llx\n", asz.offset);
           printf("  address:   %p\n", asz.address);
-        }
+        }*/
       } break;
       default:
         printf("UNKNOWN %lx\n", request);
@@ -460,8 +466,9 @@ int ioctl(int filedes, unsigned long request, void *argp) {
       ret = my_ioctl(filedes, request, argp);
       switch (request) {
         case UVM_INITIALIZE: {
-          UVM_INITIALIZE_PARAMS *p = (UVM_INITIALIZE_PARAMS *)argp;
-          printf("UVM_INITIALIZE: flags:%x rmStatus:%x\n", p->flags, p->rmStatus);
+          /*UVM_INITIALIZE_PARAMS *p = (UVM_INITIALIZE_PARAMS *)argp;
+          printf("UVM_INITIALIZE: flags:%x rmStatus:%x\n", p->flags, p->rmStatus);*/
+          pprint((UVM_INITIALIZE_PARAMS *)argp);
           break;
         }
         case UVM_PAGEABLE_MEM_ACCESS: {
@@ -470,20 +477,22 @@ int ioctl(int filedes, unsigned long request, void *argp) {
           break;
         }
         case UVM_REGISTER_GPU: {
-          UVM_REGISTER_GPU_PARAMS *p = (UVM_REGISTER_GPU_PARAMS *)argp;
+          /*UVM_REGISTER_GPU_PARAMS *p = (UVM_REGISTER_GPU_PARAMS *)argp;
           printf("UVM_REGISTER_GPU gpu_uuid:%x %x %x %x %x %x %x %x rmCtrlFd:%x hClient:%x hSmcPartRef:%x rmStatus:%x\n",
             p->gpu_uuid.uuid[0], p->gpu_uuid.uuid[1], p->gpu_uuid.uuid[2], p->gpu_uuid.uuid[3],
             p->gpu_uuid.uuid[4], p->gpu_uuid.uuid[5], p->gpu_uuid.uuid[6], p->gpu_uuid.uuid[7],
-            p->rmCtrlFd, p->hClient, p->hSmcPartRef, p->rmStatus);
+            p->rmCtrlFd, p->hClient, p->hSmcPartRef, p->rmStatus);*/
+          pprint((UVM_REGISTER_GPU_PARAMS *)argp);
           break;
         }
         case UVM_CREATE_RANGE_GROUP: {
-          UVM_CREATE_RANGE_GROUP_PARAMS *p = (UVM_CREATE_RANGE_GROUP_PARAMS *)argp;
-          printf("UVM_CREATE_RANGE_GROUP rangeGroupId: %llx rmStatus: %x\n", p->rangeGroupId, p->rmStatus);
+          /*UVM_CREATE_RANGE_GROUP_PARAMS *p = (UVM_CREATE_RANGE_GROUP_PARAMS *)argp;
+          printf("UVM_CREATE_RANGE_GROUP rangeGroupId: %llx rmStatus: %x\n", p->rangeGroupId, p->rmStatus);*/
+          pprint((UVM_CREATE_RANGE_GROUP_PARAMS *)argp);
           break;
         }
         case UVM_MAP_EXTERNAL_ALLOCATION: {
-          UVM_MAP_EXTERNAL_ALLOCATION_PARAMS *p = (UVM_MAP_EXTERNAL_ALLOCATION_PARAMS *)argp;
+          /*UVM_MAP_EXTERNAL_ALLOCATION_PARAMS *p = (UVM_MAP_EXTERNAL_ALLOCATION_PARAMS *)argp;
           printf("UVM_MAP_EXTERNAL_ALLOCATION base:%llx length:%llx offset:%llx gpuAttributesCount: %d rmCtrlFd: %x hClient: %x hMemory: %x rmStatus:%x\n",
             p->base, p->length, p->offset,
             p->gpuAttributesCount,
@@ -498,7 +507,8 @@ int ioctl(int filedes, unsigned long request, void *argp) {
               p->perGpuAttributes[i].gpuElementBits,
               p->perGpuAttributes[i].gpuCompressionType
             );
-          }
+          }*/
+          pprint((UVM_MAP_EXTERNAL_ALLOCATION_PARAMS *)argp);
           break;
         }
         case UVM_REGISTER_CHANNEL: {
@@ -510,13 +520,15 @@ int ioctl(int filedes, unsigned long request, void *argp) {
           break;
         }
         case UVM_REGISTER_GPU_VASPACE: {
-          UVM_REGISTER_GPU_VASPACE_PARAMS *p = (UVM_REGISTER_GPU_VASPACE_PARAMS *)argp;
-          printf("UVM_REGISTER_GPU_VASPACE_PARAMS gpu_uuid:*** rmCtrlFd:%x hClient:%x hVaSpace:%x rmStatus:%x\n", p->rmCtrlFd, p->hClient, p->hVaSpace, p->rmStatus);
+          /*UVM_REGISTER_GPU_VASPACE_PARAMS *p = (UVM_REGISTER_GPU_VASPACE_PARAMS *)argp;
+          printf("UVM_REGISTER_GPU_VASPACE_PARAMS gpu_uuid:*** rmCtrlFd:%x hClient:%x hVaSpace:%x rmStatus:%x\n", p->rmCtrlFd, p->hClient, p->hVaSpace, p->rmStatus);*/
+          pprint((UVM_REGISTER_GPU_VASPACE_PARAMS *)argp);
           break;
         }
         case UVM_CREATE_EXTERNAL_RANGE: {
-          UVM_CREATE_EXTERNAL_RANGE_PARAMS *p = (UVM_CREATE_EXTERNAL_RANGE_PARAMS *)argp;
-          printf("UVM_CREATE_EXTERNAL_RANGE base:%llx length:%llx\n", p->base, p->length);
+          /*UVM_CREATE_EXTERNAL_RANGE_PARAMS *p = (UVM_CREATE_EXTERNAL_RANGE_PARAMS *)argp;
+          printf("UVM_CREATE_EXTERNAL_RANGE base:%llx length:%llx\n", p->base, p->length);*/
+          pprint((UVM_CREATE_EXTERNAL_RANGE_PARAMS *)argp);
           break;
         }
         default: {
