@@ -430,7 +430,7 @@ int ioctl(int filedes, unsigned long request, void *argp) {
           }
           printf("     size:   %llx (%.2f MB)\n", asz.size, asz.size/1e6);
           printf("   offset:   %llx\n", asz.offset);
-          //printf("  address:   %p\n", asz.address);
+          printf("  address:   %p\n", asz.address);
         }
       } break;
       default:

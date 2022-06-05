@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
+#include <algorithm>
 
 void clear_gpu_ctrl() {
   memset((void*)0x200400000, 0, 0x200600000-0x200400000);
@@ -258,6 +259,7 @@ void dump_command_buffer_start_sz(uint32_t *sp, uint32_t sz) {
       cmd(NVC6C0_SET_SHADER_LOCAL_MEMORY_WINDOW_B);
       cmd(NVC6C0_SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_A);
       cmd(NVC6C0_SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_B);
+      cmd(NVC6C0_INVALIDATE_SHADER_CACHES_NO_WFI);
     }
     #undef cmd
 
@@ -266,17 +268,15 @@ void dump_command_buffer_start_sz(uint32_t *sp, uint32_t sz) {
     // dump data
     if (size > 4) printf("\n");
     for (int j = 0; j < size; j++) {
-      if (j%4 == 0 && j != 0) printf("\n");
-      if (j%4 == 0) printf("%4x: ", j*4);
-      //if (j%4 == 0) printf("%4d: ", j*4*8);
-      /*for (int k = 0; k < 4; k++) {
-        printf("%02X ", ((uint8_t*)ptr)[k]);
+      if (j < 0x10) {
+        if (j%4 == 0 && j != 0) printf("\n");
+        if (j%4 == 0) printf("%4x: ", j*4);
+        printf("%08X ", *ptr);
       }
-      printf(" ");*/
-      printf("%08X ", *ptr);
       ++ptr;
     }
-    printf("\n");
+    if (size > 0x10) printf("...\n");
+    else printf("\n");
   }
 }
 

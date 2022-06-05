@@ -30,6 +30,46 @@
 
 //void gpu_memset(int subc, void *)
 
+void gpu_setup(struct nouveau_pushbuf *push) {
+  BEGIN_NVC0(push, 1, NVC6C0_SET_OBJECT, 1);
+  PUSH_DATA(push, AMPERE_COMPUTE_B);
+  BEGIN_NVC0(push, 1, NVC6C0_NO_OPERATION, 1);
+  PUSH_DATA(push, 0);
+
+  //BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_SHARED_MEMORY_WINDOW_A, 1); PUSH_DATAh(push, 0x00007FFFF4000000);
+  //BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_SHARED_MEMORY_WINDOW_B, 1); PUSH_DATAl(push, 0x00007FFFF4000000);
+  BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_SHARED_MEMORY_WINDOW_A, 1); PUSH_DATAh(push, 0x00007FFFF4000000);
+  BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_SHARED_MEMORY_WINDOW_B, 1); PUSH_DATAl(push, 0x00007FFFF4000000);
+
+  //BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_LOCAL_MEMORY_A, 1); PUSH_DATAh(push, 0x00007FFFC0000000);
+  //BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_LOCAL_MEMORY_B, 1); PUSH_DATAl(push, 0x00007FFFC0000000);
+  BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_LOCAL_MEMORY_A, 1); PUSH_DATAh(push, 0);
+  BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_LOCAL_MEMORY_B, 1); PUSH_DATAl(push, 0);
+
+  //BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_A, 1); PUSH_DATAh(push, 0x004B0000);
+  //BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_B, 1); PUSH_DATAl(push, 0x004B0000);
+  BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_A, 1); PUSH_DATAh(push, 0x004B0000);
+  BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_B, 1); PUSH_DATAl(push, 0x004B0000);
+
+  //BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_LOCAL_MEMORY_WINDOW_A, 1); PUSH_DATAh(push, 0x00007FFFF2000000);
+  //BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_LOCAL_MEMORY_WINDOW_B, 1); PUSH_DATAl(push, 0x00007FFFF2000000);
+  BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_LOCAL_MEMORY_WINDOW_A, 1); PUSH_DATAh(push, 0);
+  BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_LOCAL_MEMORY_WINDOW_B, 1); PUSH_DATAl(push, 0);
+
+  BEGIN_NVC0(push, 1, NVC6C0_SET_SPA_VERSION, 1);
+  PUSH_DATAl(push, 0x00000806);
+  BEGIN_NVC0(push, 1, NVC6C0_SET_CWD_REF_COUNTER, 1);
+  PUSH_DATAl(push, 0x000F0000);
+  BEGIN_NVC0(push, 1, NVC6C0_SET_RESERVED_SW_METHOD07, 1);
+  PUSH_DATAl(push, 1);
+  BEGIN_NVC0(push, 1, NVC6C0_SET_VALID_SPAN_OVERFLOW_AREA_A, 3);
+  PUSH_DATAl(push, 2);
+  PUSH_DATAl(push, 0);
+  PUSH_DATAl(push, 0x001E0000);
+  BEGIN_NVC0(push, 1, NVC6C0_SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_C, 1);
+  PUSH_DATAl(push, 0x28);
+}
+
 // NVC6B5 = AMPERE_DMA_COPY_A
 void gpu_dma_copy(struct nouveau_pushbuf *push, uint64_t dst, uint64_t src, int len) {
   BEGIN_NVC0(push, 4, NVC6B5_OFFSET_IN_UPPER, 4);
@@ -70,8 +110,8 @@ void gpu_memcpy(struct nouveau_pushbuf *push, uint64_t dst, const uint32_t *dat,
 
 void gpu_compute(struct nouveau_pushbuf *push, uint64_t qmd, uint64_t program_address, uint64_t constant_address, int constant_length) {
   BEGIN_NVC0(push, 1, NVC6C0_SET_INLINE_QMD_ADDRESS_A, 2);
-  PUSH_DATAh(push, qmd);
-  PUSH_DATAl(push, qmd);
+  PUSH_DATAh(push, qmd>>8);
+  PUSH_DATAl(push, qmd>>8);
 
   uint32_t dat[0x40];
   memset(dat, 0, sizeof(dat));
@@ -136,6 +176,11 @@ void kick(int cb_index) {
   *addr = cb_index;
 }
 
+uint64_t trivial[] = {
+  0x000000000000794d, 0x000fea0003800000,
+  0xfffffff000007947, 0x000fc0000383ffff
+};
+
 #define GPU_UUID "\xb4\xe9\x43\xc6\xdc\xb5\x96\x92\x6d\xb1\x04\x69\x18\x65\x8d\x08"
 
 NvHandle alloc_object(int fd_ctl, NvV32 hClass, NvHandle root, NvHandle parent, void *params) {
@@ -167,7 +212,7 @@ void *mmap_object(int fd_ctl, NvHandle root, NvHandle subdevice, NvHandle usermo
   return mmap64(target, length, PROT_READ|PROT_WRITE, MAP_SHARED | (target != NULL ? MAP_FIXED : 0), fd_dev0, 0);
 }
 
-NvHandle heap_alloc(int fd_ctl, int fd_uvm, NvHandle root, NvHandle device, NvHandle subdevice, void *addr, int length, int flags) {
+NvHandle heap_alloc(int fd_ctl, int fd_uvm, NvHandle root, NvHandle device, NvHandle subdevice, void *addr, int length, int flags, int mmap_flags, int type) {
   NvHandle mem;
   {
     NVOS32_PARAMETERS p = {0};
@@ -178,23 +223,24 @@ NvHandle heap_alloc(int fd_ctl, int fd_uvm, NvHandle root, NvHandle device, NvHa
     asz->owner = root;
     asz->flags = flags;
     asz->size = length;
+    asz->type = type;
     int ret = ioctl(fd_ctl, __NV_IOWR(NV_ESC_RM_VID_HEAP_CONTROL, p), &p);
     mem = asz->hMemory;
   }
-  void *local_ptr = mmap_object(fd_ctl, root, subdevice, mem, length, addr, 0xc0000);
+  void *local_ptr = mmap_object(fd_ctl, root, subdevice, mem, length, addr, mmap_flags);
   assert(local_ptr == (void *)addr);
 
   {
     UVM_CREATE_EXTERNAL_RANGE_PARAMS p = {0};
     p.base = (NvU64)local_ptr;
-    p.length = 0x200000;
+    p.length = length;
     int ret = ioctl(fd_uvm, UVM_CREATE_EXTERNAL_RANGE, &p);
     assert(ret == 0);
   }
   {
     UVM_MAP_EXTERNAL_ALLOCATION_PARAMS p = {0};
     p.base = (NvU64)local_ptr;
-    p.length = 0x200000;
+    p.length = length;
     p.rmCtrlFd = fd_ctl;
     p.hClient = root;
     p.hMemory = mem;
@@ -210,7 +256,9 @@ NvHandle heap_alloc(int fd_ctl, int fd_uvm, NvHandle root, NvHandle device, NvHa
 // BLOCK_IOCTL=79,80,84,98,11,12,78,85,73,82,16,20,30,13,15,17,19,35,71 EXIT_IOCTL=106 NVDRIVER=1 ./driver.sh 
 
 int main(int argc, char *argv[]) {
+  void *mem_error = (void*)0x7ffff7ffb000;
   int work_submit_token = 0;
+
   if (!getenv("NVDRIVER")) {
     int fd_ctl = open64("/dev/nvidiactl", O_RDWR);
     NvHandle root = alloc_object(fd_ctl, NV01_ROOT_CLIENT, 0, 0, NULL);
@@ -267,10 +315,10 @@ int main(int argc, char *argv[]) {
       assert(ret == 0);
     }
 
-    NvHandle mem2 = heap_alloc(fd_ctl, fd_uvm, root, device, subdevice, (void *)0x200200000, 0x200000, NVOS32_ALLOC_FLAGS_IGNORE_BANK_PLACEMENT | NVOS32_ALLOC_FLAGS_ALIGNMENT_FORCE | NVOS32_ALLOC_FLAGS_MEMORY_HANDLE_PROVIDED | NVOS32_ALLOC_FLAGS_MAP_NOT_REQUIRED | NVOS32_ALLOC_FLAGS_PERSISTENT_VIDMEM);
-    NvHandle mem = heap_alloc(fd_ctl, fd_uvm, root, device, subdevice, (void *)0x200400000, 0x200000, NVOS32_ALLOC_FLAGS_IGNORE_BANK_PLACEMENT | NVOS32_ALLOC_FLAGS_ALIGNMENT_FORCE | NVOS32_ALLOC_FLAGS_MEMORY_HANDLE_PROVIDED | NVOS32_ALLOC_FLAGS_MAP_NOT_REQUIRED | NVOS32_ALLOC_FLAGS_PERSISTENT_VIDMEM);
-    NvHandle mem_error = 0;
-    mem_error = heap_alloc(fd_ctl, fd_uvm, root, device, subdevice, (void *)0x200600000, 0x1000, 0);
+    NvHandle mem2 = heap_alloc(fd_ctl, fd_uvm, root, device, subdevice, (void *)0x200200000, 0x200000, NVOS32_ALLOC_FLAGS_IGNORE_BANK_PLACEMENT | NVOS32_ALLOC_FLAGS_ALIGNMENT_FORCE | NVOS32_ALLOC_FLAGS_MEMORY_HANDLE_PROVIDED | NVOS32_ALLOC_FLAGS_MAP_NOT_REQUIRED | NVOS32_ALLOC_FLAGS_PERSISTENT_VIDMEM, 0xc0000, 0);
+    NvHandle mem = heap_alloc(fd_ctl, fd_uvm, root, device, subdevice, (void *)0x200400000, 0x200000, NVOS32_ALLOC_FLAGS_IGNORE_BANK_PLACEMENT | NVOS32_ALLOC_FLAGS_ALIGNMENT_FORCE | NVOS32_ALLOC_FLAGS_MEMORY_HANDLE_PROVIDED | NVOS32_ALLOC_FLAGS_MAP_NOT_REQUIRED | NVOS32_ALLOC_FLAGS_PERSISTENT_VIDMEM, 0xc0000, 0);
+    // what is type 13?
+    NvHandle mem_error_handle = heap_alloc(fd_ctl, fd_uvm, root, device, subdevice, mem_error, 0x1000, 0xc001, 0, 13);
 
     NV_CHANNEL_GROUP_ALLOCATION_PARAMETERS cgap = {0};
     cgap.engineType = NV2080_ENGINE_TYPE_GRAPHICS;
@@ -283,7 +331,7 @@ int main(int argc, char *argv[]) {
     NvHandle share = alloc_object(fd_ctl, FERMI_CONTEXT_SHARE_A, root, channel_group, &cap);
 
     NV_CHANNELGPFIFO_ALLOCATION_PARAMETERS fifoap = {0};
-    fifoap.hObjectError = mem_error;
+    fifoap.hObjectError = mem_error_handle;
     fifoap.hObjectBuffer = mem;
     fifoap.gpFifoOffset = 0x200400000;
     fifoap.gpFifoEntries = 0x400;
@@ -380,9 +428,11 @@ int main(int argc, char *argv[]) {
   fseek(f, 0x600, SEEK_SET);
   fread(program, 1, 0x180, f);
   fclose(f);
+  //memcpy(program, trivial, sizeof(trivial));
   printf("loaded program\n");
 
   uint64_t gpu_base = 0x200500000;
+  gpu_setup(push);
   gpu_memcpy(push, gpu_base+4, (const uint32_t*)"\xaa\xbb\xcc\xdd", 4);
 
   struct {
@@ -401,7 +451,9 @@ int main(int argc, char *argv[]) {
   printf("memcpyed program into gpu memory\n");
 
   // run program
-  gpu_compute(push, 0x204E020, gpu_base+0x1000, gpu_base+0x2000, 0x188);
+  // shifted 8?
+  //gpu_compute(push, 0x204E02000, gpu_base+0x1000, gpu_base+0x2000, 0x188);
+  gpu_compute(push, 0x2005f0000, gpu_base+0x1000, gpu_base+0x2000, 0x188);
 
   // do this too
   gpu_dma_copy(push, gpu_base+0x14, gpu_base+0, 8);
@@ -423,4 +475,11 @@ int main(int argc, char *argv[]) {
   // dump ram to check
   printf("pc %p\n", (void*)gpu_base);
   hexdump((void*)gpu_base, 0x20);
+  printf("error\n");
+
+  // NvNotification
+  // ROBUST_CHANNEL_GR_EXCEPTION
+  // ROBUST_CHANNEL_FIFO_ERROR_MMU_ERR_FLT
+  // ROBUST_CHANNEL_GR_CLASS_ERROR
+  hexdump((void*)mem_error, 0x40);
 }
