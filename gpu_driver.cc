@@ -265,15 +265,15 @@ int main(int argc, char *argv[]) {
       assert(ret == 0);
     }
 
-    NV_CHANNEL_GROUP_ALLOCATION_PARAMETERS cgap = {0};
-    cgap.engineType = NV2080_ENGINE_TYPE_GRAPHICS;
-    //cgap.hVASpace = vaspace;
-    NvHandle channel_group = alloc_object(fd_ctl, KEPLER_CHANNEL_GROUP_A, root, device, &cgap);
-
     NvHandle mem = heap_alloc(fd_ctl, fd_uvm, root, device, subdevice, (void *)0x200400000, 0x200000, NVOS32_ALLOC_FLAGS_IGNORE_BANK_PLACEMENT | NVOS32_ALLOC_FLAGS_ALIGNMENT_FORCE | NVOS32_ALLOC_FLAGS_MEMORY_HANDLE_PROVIDED | NVOS32_ALLOC_FLAGS_MAP_NOT_REQUIRED | NVOS32_ALLOC_FLAGS_PERSISTENT_VIDMEM);
     NvHandle mem_error = 0;
     //heap_alloc(fd_ctl, fd_uvm, root, device, subdevice, (void *)0x200600000, 0x3000000, 0xc001);
     //NvHandle mem_error = heap_alloc(fd_ctl, fd_uvm, root, device, subdevice, (void *)0x200600000, 0x1000, 0);
+
+    NV_CHANNEL_GROUP_ALLOCATION_PARAMETERS cgap = {0};
+    cgap.engineType = NV2080_ENGINE_TYPE_GRAPHICS;
+    //cgap.hVASpace = vaspace;
+    NvHandle channel_group = alloc_object(fd_ctl, KEPLER_CHANNEL_GROUP_A, root, device, &cgap);
 
     NV_CTXSHARE_ALLOCATION_PARAMETERS cap = {0};
     cap.hVASpace = vaspace;
@@ -285,6 +285,7 @@ int main(int argc, char *argv[]) {
     fifoap.hObjectBuffer = mem;
     fifoap.gpFifoOffset = 0x200400000;
     fifoap.gpFifoEntries = 0x400;
+    fifoap.hContextShare = share;
     // TSG channels can't use an explicit vaspace
     //fifoap.hVASpace = vaspace;
     fifoap.hUserdMemory[0] = mem;

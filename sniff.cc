@@ -374,6 +374,7 @@ int ioctl(int filedes, unsigned long request, void *argp) {
             printf("hObjectBuffer: %x\n", pAllocParams->hObjectBuffer);
             printf("gpFifoOffset: %llx\n", pAllocParams->gpFifoOffset);
             printf("gpFifoEntries: %x\n", pAllocParams->gpFifoEntries);
+            printf("hContextShare: %x\n", pAllocParams->hContextShare);
             printf("flags: %x\n", pAllocParams->flags);
             printf("hVASpace: %x\n", pAllocParams->hVASpace);
             for (int i = 0; i < NVOS_MAX_SUBDEVICES; i++) {
@@ -387,11 +388,18 @@ int ioctl(int filedes, unsigned long request, void *argp) {
             printf("subDeviceId: %x\n", pAllocParams->subDeviceId);
             printf("hObjectEccError: %x\n", pAllocParams->hObjectEccError);
 
+            printf("hPhysChannelGroup: %x\n", pAllocParams->hPhysChannelGroup);
+            printf("internalFlags: %x\n", pAllocParams->internalFlags);
+            printf("ProcessID: %x\n", pAllocParams->ProcessID);
+            printf("SubProcessID: %x\n", pAllocParams->SubProcessID);
+
             #define DMP(x) printf(#x " %llx %llx %d %d\n", x.base, x.size, x.addressSpace, x.cacheAttrib);
             DMP(pAllocParams->instanceMem);
             DMP(pAllocParams->userdMem);
             DMP(pAllocParams->ramfcMem);
             DMP(pAllocParams->mthdbufMem);
+            DMP(pAllocParams->errorNotifierMem);
+            DMP(pAllocParams->eccErrorNotifierMem);
           } else {
             hexdump(p->pAllocParms, 0x40);
           }
