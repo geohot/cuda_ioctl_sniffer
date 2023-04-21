@@ -34,6 +34,7 @@
 #include "src/nvidia/generated/g_allclasses.h"
 #include "src/common/sdk/nvidia/inc/class/cl0080.h"
 #include "src/common/sdk/nvidia/inc/class/cl2080.h"
+#include "src/common/sdk/nvidia/inc/class/cl503b.h"
 #include "rs.h"
 
 #include "out/printer.h"
@@ -344,6 +345,7 @@ int ioctl(int filedes, unsigned long request, void *argp) {
           cls(AMPERE_DMA_COPY_B);
           cls(AMPERE_COMPUTE_B);
           cls(GT200_DEBUGGER);
+          cls(NV50_P2P);
         }
 
         printf("NV_ESC_RM_ALLOC hRoot: %x hObjectParent: %x hObjectNew: %x hClass: %s(%x) pAllocParms: %p status: 0x%x\n", p->hRoot, p->hObjectParent, p->hObjectNew,
@@ -422,6 +424,8 @@ int ioctl(int filedes, unsigned long request, void *argp) {
             DMP(pAllocParams->errorNotifierMem);
             DMP(pAllocParams->eccErrorNotifierMem);*/
             pprint((NV_CHANNELGPFIFO_ALLOCATION_PARAMETERS *)p->pAllocParms);
+          } else if (p->hClass == NV50_P2P) {
+            pprint((NV503B_ALLOC_PARAMETERS *)p->pAllocParms);
           } else {
             hexdump(p->pAllocParms, 0x40);
           }
@@ -533,6 +537,10 @@ int ioctl(int filedes, unsigned long request, void *argp) {
           /*UVM_CREATE_EXTERNAL_RANGE_PARAMS *p = (UVM_CREATE_EXTERNAL_RANGE_PARAMS *)argp;
           printf("UVM_CREATE_EXTERNAL_RANGE base:%llx length:%llx\n", p->base, p->length);*/
           pprint((UVM_CREATE_EXTERNAL_RANGE_PARAMS *)argp);
+          break;
+        }
+        case UVM_ENABLE_PEER_ACCESS: {
+          pprint((UVM_ENABLE_PEER_ACCESS_PARAMS *)argp);
           break;
         }
         default: {

@@ -29,7 +29,7 @@ int main(int argc, char *argv[]) {
 
   printf("***** get device\n");
   CUdevice pdev;
-  cuDeviceGet(&pdev, 0);
+  cuDeviceGet(&pdev, 1); // TODO: the hook only works with 1 here at work
 
   printf("***** create context\n");
   CUcontext pctx;
