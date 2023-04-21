@@ -260,8 +260,7 @@ int main(int argc, char *argv[]) {
     work_submit_token = ctx.work_submit_token;
     gpu_mmio_ptr = ctx.gpu_mmio_ptr;
   } else {
-    // our GPU driver doesn't support init. use CUDA
-    // TODO: remove linking to CUDA
+    // do the init in CUDA (unmaintained)
 #ifndef DISABLE_CUDA_SUPPORT
     CUdevice pdev;
     CUcontext pctx;
