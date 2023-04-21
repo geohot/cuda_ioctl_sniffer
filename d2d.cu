@@ -1,21 +1,34 @@
 #include <stdio.h>
 #include <cuda.h>
+#include <assert.h>
 // dmesg -w | grep -Ei "p2p|fault"
 
 int main(int argc, char *argv[]) {
-  printf("***** malloc 1\n");
-  cudaSetDevice(1);
+  int nDevices;
+  cudaGetDeviceCount(&nDevices);
+  for (int i = 0; i < nDevices; i++) {
+    cudaDeviceProp prop;
+    cudaGetDeviceProperties(&prop, i);
+    printf("Device %d name: %s\n", i, prop.name);
+  }
+
+  //int g0=0, g1=1;
+  int g0=1, g1=0;
+
+  printf("***** malloc %d\n", g1);
+  cudaSetDevice(g1);
   float *b = NULL;
   cudaMalloc(&b, 0x10000);
 
-  printf("***** malloc 0\n");
-  cudaSetDevice(0);
+  printf("***** malloc %d\n", g0);
+  cudaSetDevice(g0);
   float *a = NULL;
   cudaMalloc(&a, 0x10000);
-  cudaSetDevice(1);
+  cudaSetDevice(g1);
 
   printf("***** enable p2p\n");
-  cudaDeviceEnablePeerAccess(0, 0);
+  cudaError_t err = cudaDeviceEnablePeerAccess(g0, 0);
+  assert(err == CUDA_SUCCESS);
 
   printf("***** cuMemcpyDtoD %p %p\n", a, b);
   cuMemcpyDtoD((CUdeviceptr)a, (CUdeviceptr)b, 0x1000);
