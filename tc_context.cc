@@ -114,7 +114,7 @@ void TcContext::init_device() {
 
   root = alloc_object(fd_ctl, NV01_ROOT_CLIENT, 0, 0, NULL);
 
-  // TODO: where does deviceId come from? it's 0x0 at home and 0x1 at work
+  // TODO: where does deviceId come from? it's 0x0 at home and 0x1 at work. sometimes it has to be 0x0
   NV0080_ALLOC_PARAMETERS ap0080 = { .deviceId = 0x1, .hClientShare = root, .vaMode = NV_DEVICE_ALLOCATION_VAMODE_MULTIPLE_VASPACES };
   device = alloc_object(fd_ctl, NV01_DEVICE_0, root, root, &ap0080);
   subdevice = alloc_object(fd_ctl, NV20_SUBDEVICE_0, root, device, NULL);

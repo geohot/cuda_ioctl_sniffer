@@ -24,6 +24,8 @@
 
 #include <thread>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
+#include <sys/mman.h>
 #include <fcntl.h>
 #ifndef DISABLE_CUDA_SUPPORT
 #include <cuda.h>
@@ -32,6 +34,8 @@
 #include <sys/mman.h>
 
 #include "tc_context.h"
+
+extern unsigned char GPU_UUID[];
 
 //void gpu_memset(int subc, void *)
 
@@ -174,8 +178,6 @@ uint64_t trivial[] = {
   0x000000000000794d, 0x000fea0003800000,  // EXIT
 };
 
-#define GPU_UUID "\xb4\xe9\x43\xc6\xdc\xb5\x96\x92\x6d\xb1\x04\x69\x18\x65\x8d\x08"
-
 NvHandle alloc_object(int fd_ctl, NvV32 hClass, NvHandle root, NvHandle parent, void *params) {
   NVOS21_PARAMETERS p = {
     .hRoot = root, .hObjectParent = parent, .hClass = hClass, .pAllocParms = params
@@ -309,9 +311,10 @@ int main(int argc, char *argv[]) {
   args.value = 0x1337;
 
   // load program and args
+  // NOTE: normal memcpy also works here
   gpu_memcpy(push, gpu_base+0x1000, program, 0x180);
   gpu_memcpy(push, gpu_base+0x2160, (const uint32_t*)&args, 0x10);
-  printf("memcpyed program into gpu memory\n");
+  printf("memcpyed program into gpu memory @ 0x%lx\n", gpu_base);
 
   // run program
   gpu_compute(push, gpu_base+0x4000, gpu_base+0x1000, gpu_base+0x2000, 0x160+sizeof(args));
@@ -339,6 +342,11 @@ int main(int argc, char *argv[]) {
   hexdump((void*)gpu_base, 0x20);
   printf("error\n");
 
+  assert(((uint32_t*)gpu_base)[0] = 0x1337); // gpu_compute
+  assert(((uint32_t*)gpu_base)[1] = 0xDDCCBBAA); // gpu_memcpy
+  assert(((uint32_t*)gpu_base)[0] == ((uint32_t*)gpu_base)[5]); // gpu_dma_copy
+  assert(((uint32_t*)gpu_base)[1] == ((uint32_t*)gpu_base)[6]); // gpu_dma_copy
+
   // NvNotification
   // ROBUST_CHANNEL_GR_EXCEPTION = 0xd
   // ROBUST_CHANNEL_FIFO_ERROR_MMU_ERR_FLT = 0x1f
@@ -346,4 +354,19 @@ int main(int argc, char *argv[]) {
   hexdump((void*)mem_error, 0x40);
 
   if (getenv("HANG")) { while(1) sleep(1); }
+
+  // find data in BAR1
+  // sudo chmod 666 /sys/bus/pci/devices/0000:61:00.0/resource1
+  const char *bar_file = "/sys/bus/pci/devices/0000:61:00.0/resource1";
+  int bar_fd = open(bar_file, O_RDWR | O_SYNC);
+  assert(bar_fd >= 0);
+  struct stat st;
+  fstat(bar_fd, &st);
+  printf("**** BAR1(%d) %.2f MB\n", bar_fd, st.st_size*1.0/(1024*1024));
+  // huh, why do I need the -0x110000 (can't be smaller)
+  char *bar = (char *)mmap(0, st.st_size-0x110000, PROT_READ | PROT_WRITE, MAP_SHARED, bar_fd, 0);
+  assert(bar != MAP_FAILED);
+  // 0x200000000 is the base of the GPU
+  hexdump(bar+0x500000, 0x20);
+  //for (int i = 0; i < 0x1000000; i+=0x10000) hexdump(bar+i, 0x10);
 }
