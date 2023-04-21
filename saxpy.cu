@@ -9,8 +9,7 @@
 //#define BROKEN
 //#define DUMP_MAPS
 extern "C" {
-extern const unsigned long long fatbinData[427];
-//extern const unsigned long long fatbinData[372];
+extern const unsigned long long fatbinData[];
 }
 
 __global__
@@ -51,8 +50,8 @@ int main(int argc, char *argv[]) {
   assert(saxpy_f != 0);
 
   printf("***** entry malloc\n");
-  //cudaMalloc(&d_x, N*sizeof(float)); 
-  cuMemAlloc((CUdeviceptr*)&d_x, N*sizeof(float)); 
+  //cudaMalloc(&d_x, N*sizeof(float));
+  cuMemAlloc((CUdeviceptr*)&d_x, N*sizeof(float));
   printf("***** entry malloc 2\n");
   cuMemAlloc((CUdeviceptr*)&d_y, N*sizeof(float));
   printf("%p %p\n", d_x, d_y);
@@ -156,7 +155,7 @@ int main(int argc, char *argv[]) {
   dump_command_buffer(*((uint64_t*)0x200424010));
   dump_command_buffer(*((uint64_t*)0x200424018));
   dump_command_buffer(*((uint64_t*)0x200424020));*/
-  
+
   //) & 0xFFFFFFFFFF));
   //dump_command_buffer((uint32_t *)(*((uint64_t*)0x200424008) & 0xFFFFFFFFFF));
 

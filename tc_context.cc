@@ -1,4 +1,5 @@
 #include <fcntl.h>
+#include <stdio.h>
 #include <string.h>
 #include <assert.h>
 #include <sys/ioctl.h>
@@ -25,9 +26,8 @@
 #include <ctrl/ctrla06c.h> // KEPLER_CHANNEL_GROUP_A
 #include <ctrl/ctrlc36f.h> // VOLTA_CHANNELChannelGPFifoA
 
-// TODO: get this dynamically
-// (you can get manually with 'nvidia-smi -L')
-#define GPU_UUID "\xb4\xe9\x43\xc6\xdc\xb5\x96\x92\x6d\xb1\x04\x69\x18\x65\x8d\x08"
+// read by init_device
+unsigned char GPU_UUID[0x10];
 
 static NvHandle alloc_object(int fd_ctl, NvV32 hClass, NvHandle root, NvHandle parent, void *params) {
   NVOS21_PARAMETERS p = {
@@ -90,6 +90,7 @@ static NvHandle heap_alloc(int fd_ctl, int fd_uvm, NvHandle root, NvHandle devic
   return mem;
 }
 
+// rm stands for "Resource Manager"
 static void rm_control(int fd_ctl, NvU32 cmd, NvHandle client, NvHandle object, void *params, NvU32 paramsize) {
   NVOS54_PARAMETERS p = {
     .hClient = client, .hObject = object, .cmd = cmd, .params = params, .paramsSize = paramsize
@@ -113,7 +114,8 @@ void TcContext::init_device() {
 
   root = alloc_object(fd_ctl, NV01_ROOT_CLIENT, 0, 0, NULL);
 
-  NV0080_ALLOC_PARAMETERS ap0080 = { .hClientShare = root, .vaMode = NV_DEVICE_ALLOCATION_VAMODE_MULTIPLE_VASPACES };
+  // TODO: where does deviceId come from? it's 0x0 at home and 0x1 at work
+  NV0080_ALLOC_PARAMETERS ap0080 = { .deviceId = 0x1, .hClientShare = root, .vaMode = NV_DEVICE_ALLOCATION_VAMODE_MULTIPLE_VASPACES };
   device = alloc_object(fd_ctl, NV01_DEVICE_0, root, root, &ap0080);
   subdevice = alloc_object(fd_ctl, NV20_SUBDEVICE_0, root, device, NULL);
   usermode = alloc_object(fd_ctl, TURING_USERMODE_A, root, subdevice, NULL);
@@ -125,6 +127,13 @@ void TcContext::init_device() {
     .vaBase = 0x1000
   };
   vaspace = alloc_object(fd_ctl, FERMI_VASPACE_A, root, device, &vap);
+
+  // get UUID
+  {
+    NV2080_CTRL_GPU_GET_GID_INFO_PARAMS p = { .flags=NV2080_GPU_CMD_GPU_GET_GID_FLAGS_FORMAT_BINARY, .length=16};
+    rm_control(fd_ctl, NV2080_CTRL_CMD_GPU_GET_GID_INFO, root, subdevice, &p, sizeof(p));
+    memcpy(GPU_UUID, p.data, 0x10);
+  }
 }
 
 void TcContext::init_uvm() {

@@ -9,7 +9,7 @@
 #include "kernel-open/common/inc/nv.h"
 #include "src/common/sdk/nvidia/inc/nvos.h"
 
-#include "src/nvidia/generated/g_allclasses.h"
+//#include "src/nvidia/generated/g_allclasses.h"
 #include "src/nvidia/arch/nvalloc/unix/include/nv_escape.h"
 #include "src/nvidia/arch/nvalloc/unix/include/nv-unix-nvos-params-wrappers.h"
 
@@ -246,7 +246,7 @@ void rm_control(int fd_ctl, NvU32 cmd, NvHandle client, NvHandle object, void *p
   assert(p.status == 0);
 }
 
-// BLOCK_IOCTL=79,80,84,98,11,12,78,85,73,82,16,20,30,13,15,17,19,35,71 EXIT_IOCTL=106 NVDRIVER=1 ./driver.sh 
+// BLOCK_IOCTL=79,80,84,98,11,12,78,85,73,82,16,20,30,13,15,17,19,35,71 EXIT_IOCTL=106 NVDRIVER=1 ./driver.sh
 
 int main(int argc, char *argv[]) {
   void *mem_error = (void*)0x7ffff7ffb000;
