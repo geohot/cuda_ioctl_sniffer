@@ -18,12 +18,12 @@ int main(int argc, char *argv[]) {
   printf("***** malloc %d\n", g1);
   cudaSetDevice(g1);
   float *b = NULL;
-  cudaMalloc(&b, 0x10000);
+  cudaMalloc(&b, 0x13370);
 
   printf("***** malloc %d\n", g0);
   cudaSetDevice(g0);
   float *a = NULL;
-  cudaMalloc(&a, 0x10000);
+  cudaMalloc(&a, 0x13370);
   cudaSetDevice(g1);
 
   printf("***** enable p2p\n");
