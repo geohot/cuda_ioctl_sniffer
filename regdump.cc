@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <fcntl.h>
 #include <assert.h>
 #include <sys/stat.h>
@@ -14,7 +15,7 @@ void hexdump(void *d, int l) {
   printf("\n");
 }
 
-int main() {
+int main(int argc, char* argv[]) {
   // sudo chmod 666 /sys/bus/pci/devices/0000:61:00.0/resource0
   const char *bar_file = "/sys/bus/pci/devices/0000:61:00.0/resource0";
   int bar_fd = open(bar_file, O_RDWR | O_SYNC);
@@ -26,5 +27,8 @@ int main() {
   assert(bar != MAP_FAILED);
 
   // NV_P2P
-  hexdump(bar+0x00139000, 0x2000);
+  unsigned long long addr = strtoull(argv[1], NULL, 0x10);
+  unsigned long long len = strtoull(argv[2], NULL, 0x10);
+  printf("dumping 0x%llx-0x%llx\n", addr, addr+len);
+  hexdump(bar+addr, len);
 }
