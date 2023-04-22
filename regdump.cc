@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <fcntl.h>
 #include <assert.h>
 #include <sys/stat.h>
@@ -29,6 +30,8 @@ int main(int argc, char* argv[]) {
   // NV_P2P
   unsigned long long addr = strtoull(argv[1], NULL, 0x10);
   unsigned long long len = strtoull(argv[2], NULL, 0x10);
+  //*(uint32_t*)(bar+addr) = 0xffffffff;
+  //*(uint32_t*)(bar+addr+4) = 0xffffffff;
   printf("dumping 0x%llx-0x%llx\n", addr, addr+len);
   hexdump(bar+addr, len);
 }

@@ -23,6 +23,7 @@
 #include <class/clc56f.h>  // AMPERE_CHANNEL_GPFIFO_A
 #include <class/clc7c0.h>  // AMPERE_COMPUTE_B
 
+#include <ctrl/ctrl0000/ctrl0000gpu.h>
 #include <ctrl/ctrla06c.h> // KEPLER_CHANNEL_GROUP_A
 #include <ctrl/ctrlc36f.h> // VOLTA_CHANNELChannelGPFifoA
 
@@ -113,6 +114,26 @@ void TcContext::init_device() {
   fd_dev0 = open64("/dev/nvidia0", O_RDWR | O_CLOEXEC);
 
   root = alloc_object(fd_ctl, NV01_ROOT_CLIENT, 0, 0, NULL);
+
+  // list devices
+  /*{
+    NV0000_CTRL_GPU_GET_ATTACHED_IDS_PARAMS p = {0};
+    rm_control(fd_ctl, NV0000_CTRL_CMD_GPU_GET_ATTACHED_IDS, root, root, &p, sizeof(p));
+    for (int i = 0; i < NV0000_CTRL_GPU_MAX_ATTACHED_GPUS; i++) {
+      if (p.gpuIds[i] != NV0000_CTRL_GPU_INVALID_ID) {
+        NV0000_CTRL_GPU_GET_ID_INFO_V2_PARAMS p2 = { .gpuId = p.gpuIds[i] };
+        rm_control(fd_ctl, NV0000_CTRL_CMD_GPU_GET_ID_INFO_V2, root, root, &p2, sizeof(p2));
+        printf("found GPU %d : gpuId:0x%x deviceInstance:%d\n", i, p.gpuIds[i], p2.deviceInstance);
+      }
+    }
+  }*/
+
+  // get deviceId
+  {
+    NV0000_CTRL_GPU_GET_DEVICE_IDS_PARAMS p = {0};
+    rm_control(fd_ctl, NV0000_CTRL_CMD_GPU_GET_DEVICE_IDS, root, root, &p, sizeof(p));
+    printf("deviceIds : %x\n", p.deviceIds);
+  }
 
   // TODO: where does deviceId come from? it's 0x0 at home and 0x1 at work. sometimes it has to be 0x0
   NV0080_ALLOC_PARAMETERS ap0080 = { .deviceId = 0x1, .hClientShare = root, .vaMode = NV_DEVICE_ALLOCATION_VAMODE_MULTIPLE_VASPACES };
@@ -227,5 +248,14 @@ void TcContext::init_fifo() {
     NVA06C_CTRL_GPFIFO_SCHEDULE_PARAMS sp = {0};
     sp.bEnable = true;
     rm_control(fd_ctl, NVA06C_CTRL_CMD_GPFIFO_SCHEDULE, root, channel_group, &sp, sizeof(sp));
+  }
+
+  // get slowdown params
+  {
+    NV2080_CTRL_GR_GET_SM_ISSUE_RATE_MODIFIER_PARAMS p = { 0 };
+    rm_control(fd_ctl, NV2080_CTRL_CMD_GR_GET_SM_ISSUE_RATE_MODIFIER, root, subdevice, &p, sizeof(p));
+    // fmla32 and imla4 are half speed on 3090
+    printf("rate modifiers -- imla0:%d fmla16:%d dp:%d fmla32:%d ffma:%d imla1:%d imla2:%d imla3:%d imla4:%d\n",
+      p.imla0, p.fmla16, p.dp, p.fmla32, p.ffma, p.imla1, p.imla2, p.imla3, p.imla4);
   }
 }

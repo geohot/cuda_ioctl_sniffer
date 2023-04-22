@@ -2,3 +2,4 @@ out
 open-gpu-kernel-modules
 .*.swp
 a.out
+.vscode

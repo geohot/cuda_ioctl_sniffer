@@ -357,7 +357,7 @@ int main(int argc, char *argv[]) {
 
   // find data in BAR1
   // sudo chmod 666 /sys/bus/pci/devices/0000:61:00.0/resource1
-  const char *bar_file = "/sys/bus/pci/devices/0000:61:00.0/resource1";
+  /*const char *bar_file = "/sys/bus/pci/devices/0000:61:00.0/resource1";
   int bar_fd = open(bar_file, O_RDWR | O_SYNC);
   assert(bar_fd >= 0);
   struct stat st;
@@ -367,6 +367,6 @@ int main(int argc, char *argv[]) {
   char *bar = (char *)mmap(0, st.st_size-0x110000, PROT_READ | PROT_WRITE, MAP_SHARED, bar_fd, 0);
   assert(bar != MAP_FAILED);
   // 0x200000000 is the base of the GPU
-  hexdump(bar+0x500000, 0x20);
+  hexdump(bar+0x500000, 0x20);*/
   //for (int i = 0; i < 0x1000000; i+=0x10000) hexdump(bar+i, 0x10);
 }
