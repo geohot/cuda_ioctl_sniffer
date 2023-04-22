@@ -16,6 +16,15 @@ void hexdump(void *d, int l) {
   printf("\n");
 }
 
+void hexdump32(void *d, int l, uint32_t start=0) {
+  for (int i = 0; i < l; i+=4) {
+    if (i%0x20 == 0 && i != 0) printf("\n");
+    if (i%0x20 == 0) printf("%8X: ", i+start);
+    printf("%8.8X ", ((uint32_t*)d)[i/4]);
+  }
+  printf("\n");
+}
+
 int main(int argc, char* argv[]) {
   // sudo chmod 666 /sys/bus/pci/devices/0000:61:00.0/resource0
   const char *bar_file = "/sys/bus/pci/devices/0000:61:00.0/resource0";
@@ -30,8 +39,20 @@ int main(int argc, char* argv[]) {
   // NV_P2P
   unsigned long long addr = strtoull(argv[1], NULL, 0x10);
   unsigned long long len = strtoull(argv[2], NULL, 0x10);
-  //*(uint32_t*)(bar+addr) = 0xffffffff;
-  //*(uint32_t*)(bar+addr+4) = 0xffffffff;
+
+  // dmem dump
+  /**(uint32_t*)(bar+addr+0x210) = 0;
+  int dlen = 0x2c000;
+  uint32_t arr[dlen/4];
+  for (int i = 0; i < dlen; i+=4) {
+    *(uint32_t*)(bar+addr+0x1c0) = i; // | (1 << 25); //0x8000000;
+    arr[i/4] = *(uint32_t*)(bar+addr+0x1c4);
+    //printf("%08x : %08x\n", i, *(uint32_t*)(bar+addr+0x1c4));
+  }
+  FILE *f = fopen("/tmp/dmem", "wb");
+  fwrite(arr, 1, dlen, f);
+  fclose(f);*/
+
   printf("dumping 0x%llx-0x%llx\n", addr, addr+len);
-  hexdump(bar+addr, len);
+  hexdump32(bar+addr, len, addr);
 }
