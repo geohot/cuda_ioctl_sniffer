@@ -47,9 +47,8 @@ std::map<int, std::string> files;
 
 extern "C" {
 
-volatile uint32_t *real = NULL;    // this is the actual mapping of the MMIO page
-uint32_t *realfake = NULL;         // this is where we actually redirect the write to (TODO: can we just put real in here)
-uint32_t *fake = NULL;             // this is an empty page that will cause a trap
+// empty page that will cause a trap -> actual mapping of the MMIO page
+std::map<void*, void*> fakepages;
 
 void hook(uint64_t addr, uint64_t rdx, int start) {
   printf("HOOK 0x%lx = %lx\n", addr, rdx);
@@ -61,8 +60,8 @@ void hook(uint64_t addr, uint64_t rdx, int start) {
     dump_command_buffer((uint64_t)&base[q*2]);
   }
 
-  // kick off the GPU command queue
-  real[0x90/4] = rdx;
+  // kick off the GPU command queue (not needed, now the return writes to real)
+  //real[0x90/4] = rdx;
 }
 
 int handler_start = 0;
@@ -70,7 +69,15 @@ static void handler(int sig, siginfo_t *si, void *unused) {
   ucontext_t *u = (ucontext_t *)unused;
   uint8_t *rip = (uint8_t*)u->uc_mcontext.gregs[REG_RIP];
 
-  if (si->si_addr < fake || si->si_addr >= fake+0x1000) {
+  uint32_t *fake = NULL, *real = NULL;
+  for (auto tp : fakepages) {
+    if (si->si_addr >= tp.first && (uint64_t)si->si_addr < ((uint64_t)tp.first)+0x10000) {
+      fake = (uint32_t *)tp.first;
+      real = (uint32_t *)tp.second;
+    }
+  }
+
+  if (fake == NULL) {
     // this is not our hacked page, segfault
     printf("segfault at %p\n", si->si_addr);
     exit(-1);
@@ -87,13 +94,17 @@ static void handler(int sig, siginfo_t *si, void *unused) {
   // TODO: decompile all stores
   int store_reg = REG_RAX;
   if (rip[0] == 0x89 && rip[1] == 0x10) {
+    // mov    DWORD PTR [eax],edx
     rdx = u->uc_mcontext.gregs[REG_RDX];
   } else if (rip[0] == 0x89 && rip[1] == 0x08) {
+    // mov    DWORD PTR [eax],ecx
     rdx = u->uc_mcontext.gregs[REG_RCX];
   } else if (rip[0] == 0x89 && rip[1] == 0x0a) {
+    // mov    DWORD PTR [edx],ecx
     rdx = u->uc_mcontext.gregs[REG_RCX];
     store_reg = REG_RDX;
   } else if (rip[0] == 0x89 && rip[1] == 0x01) {
+    // mov    DWORD PTR [ecx],eax
     rdx = u->uc_mcontext.gregs[REG_RAX];
     store_reg = REG_RCX;
   } else {
@@ -106,9 +117,11 @@ static void handler(int sig, siginfo_t *si, void *unused) {
   // this is wrong, they can actually be anywhere
   if (handler_start == 0) handler_start = rdx;
 
-  uint64_t addr = (uint64_t)si->si_addr-(uint64_t)fake+(uint64_t)realfake;
+  uint64_t addr = (uint64_t)si->si_addr-(uint64_t)fake+(uint64_t)real;
   if ((addr & 0xFF) == 0x90) {
     hook(addr, rdx, handler_start);
+  } else {
+    printf("non hook handler at rip %p with addr %p\n", rip, addr);
   }
 
   u->uc_mcontext.gregs[store_reg] = addr;
@@ -145,18 +158,19 @@ int open64(const char *pathname, int flags, mode_t mode) {
   return ret;
 }
 
+bool usermode_map_pending = false;
 void *(*my_mmap64)(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
 #undef mmap64
 void *mmap64(void *addr, size_t length, int prot, int flags, int fd, off_t offset) {
   if (my_mmap64 == NULL) my_mmap64 = reinterpret_cast<decltype(my_mmap64)>(dlsym(RTLD_NEXT, "mmap"));
   void *ret = my_mmap64(addr, length, prot, flags, fd, offset);
 
-  if (flags == 0x1 && length == 0x10000 && !real) {
-    real = (uint32_t *)ret;
-    assert(real != (void*)-1);
-    realfake = (uint32_t *)mmap(NULL, length, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANON, -1, 0);
-    ret = fake = (uint32_t *)mmap((void*)0x13370000, length, PROT_NONE, MAP_SHARED | MAP_ANON | MAP_FIXED, -1, 0);
-    printf("YOU SUNK MY BATTLESHIP: real %p    realfake: %p    fake: %p\n", real, realfake, fake);
+  if (usermode_map_pending && flags == 0x1 && length == 0x10000) {
+    usermode_map_pending = false;
+    void *fake = (uint32_t *)mmap(NULL, length, PROT_NONE, MAP_SHARED | MAP_ANON, -1, 0);
+    printf("FOUND MMIO MAP: real %p    fake: %p\n", ret, fake);
+    fakepages[fake] = ret;
+    ret = fake;
   }
 
   if (fd != -1) printf("mmapped(64) %p (target %p) with prot 0x%x flags 0x%x length 0x%zx fd %d\n", ret, addr, prot, flags, length, fd);
@@ -350,6 +364,7 @@ int ioctl(int filedes, unsigned long request, void *argp) {
           cls(GT200_DEBUGGER);
           cls(NV50_P2P);
         }
+        if (p->hClass == TURING_USERMODE_A) usermode_map_pending = true;
 
         printf("NV_ESC_RM_ALLOC hRoot: %x hObjectParent: %x hObjectNew: %x hClass: %s(%x) pAllocParms: %p status: 0x%x\n", p->hRoot, p->hObjectParent, p->hObjectNew,
           cls_string, p->hClass, p->pAllocParms, p->status);
