@@ -40,6 +40,7 @@
 
 #include "out/printer.h"
 
+#include <vector>
 #include <map>
 std::map<int, std::string> files;
 
@@ -47,12 +48,16 @@ std::map<int, std::string> files;
 
 extern "C" {
 
+//uint64_t gpFifoOffset = 0x200400000;
+std::map<uint64_t, uint64_t> workTokens;      // map work tokens to AMPERE_CHANNEL_GPFIFO_A objects
+std::map<uint64_t, uint32_t*> gpFifoOffsets;  // map AMPERE_CHANNEL_GPFIFO_A objects to addresses
+
 // empty page that will cause a trap -> actual mapping of the MMIO page
 std::map<void*, void*> fakepages;
 
-void hook(uint64_t addr, uint64_t rdx, int start) {
-  printf("HOOK 0x%lx = %lx\n", addr, rdx);
-  uint32_t *base = (uint32_t*)(0x200400000 + ((rdx&0xFFFF)-start)*0x3000);
+void hook(uint64_t addr, uint64_t rdx) {
+  printf("HOOK 0x%lx = %lx workToken:%lx\n", addr, rdx, workTokens[rdx]);
+  uint32_t *base = gpFifoOffsets[workTokens[rdx]];
   printf("base %p range %d-%d\n", base, base[0x2088/4], base[0x208c/4]);
 
   for (int q = base[0x2088/4]; q < base[0x208c/4]; q++) {
@@ -64,7 +69,6 @@ void hook(uint64_t addr, uint64_t rdx, int start) {
   //real[0x90/4] = rdx;
 }
 
-int handler_start = 0;
 static void handler(int sig, siginfo_t *si, void *unused) {
   ucontext_t *u = (ucontext_t *)unused;
   uint8_t *rip = (uint8_t*)u->uc_mcontext.gregs[REG_RIP];
@@ -92,7 +96,9 @@ static void handler(int sig, siginfo_t *si, void *unused) {
   // TODO: where does start come from
   // rdx is the offset into the command buffer GPU mapping
   // TODO: decompile all stores
-  int store_reg = REG_RAX;
+  // https://defuse.ca/online-x86-assembler.htm#disassembly2
+  int addr_reg = REG_RAX;
+  bool is_load = false;
   if (rip[0] == 0x89 && rip[1] == 0x10) {
     // mov    DWORD PTR [eax],edx
     rdx = u->uc_mcontext.gregs[REG_RDX];
@@ -102,29 +108,35 @@ static void handler(int sig, siginfo_t *si, void *unused) {
   } else if (rip[0] == 0x89 && rip[1] == 0x0a) {
     // mov    DWORD PTR [edx],ecx
     rdx = u->uc_mcontext.gregs[REG_RCX];
-    store_reg = REG_RDX;
+    addr_reg = REG_RDX;
   } else if (rip[0] == 0x89 && rip[1] == 0x01) {
     // mov    DWORD PTR [ecx],eax
     rdx = u->uc_mcontext.gregs[REG_RAX];
-    store_reg = REG_RCX;
+    addr_reg = REG_RCX;
+  } else if (rip[0] == 0x8b && rip[1] == 0x02) {
+    // mov    eax,DWORD PTR [edx]
+    is_load = true;
+    addr_reg = REG_RDX;
+  } else if (rip[0] == 0x8b && rip[1] == 0x3e) {
+    // mov    edi,DWORD PTR [esi]
+    is_load = true;
+    addr_reg = REG_RSI;
   } else {
-    printf("UNKNOWN CALL ASM\n");
+    printf("UNKNOWN CALL ASM addr:%p\n", (uint64_t)si->si_addr-(uint64_t)fake);
     hexdump(rip, 0x80);
     printf("intercept %02X %02X %02X %02X rip %p\n", rip[0], rip[1], rip[2], rip[3], rip);
     exit(-1);
   }
 
-  // this is wrong, they can actually be anywhere
-  if (handler_start == 0) handler_start = rdx;
-
+  // NOTE: OpenCL reads from 0x80 and 0x84
   uint64_t addr = (uint64_t)si->si_addr-(uint64_t)fake+(uint64_t)real;
-  if ((addr & 0xFF) == 0x90) {
-    hook(addr, rdx, handler_start);
+  if (!is_load && (addr & 0xFF) == 0x90) {
+    hook(addr, rdx);
   } else {
-    printf("non hook handler at rip %p with addr %p\n", rip, addr);
+    printf("non hook handler at rip %p with addr %p\n", rip, (uint64_t)si->si_addr-(uint64_t)fake);
   }
 
-  u->uc_mcontext.gregs[store_reg] = addr;
+  u->uc_mcontext.gregs[addr_reg] = addr;
 }
 
 __attribute__((constructor)) void foo(void) {
@@ -333,6 +345,7 @@ int ioctl(int filedes, unsigned long request, void *argp) {
           case NVC36F_CTRL_CMD_GPFIFO_GET_WORK_SUBMIT_TOKEN: {
             NVC36F_CTRL_CMD_GPFIFO_GET_WORK_SUBMIT_TOKEN_PARAMS *subParams = (NVC36F_CTRL_CMD_GPFIFO_GET_WORK_SUBMIT_TOKEN_PARAMS *)p->params;
             printf("work submit token 0x%x ", subParams->workSubmitToken);
+            workTokens[subParams->workSubmitToken] = p->hObject;
             cmd_string = "NVC36F_CTRL_CMD_GPFIFO_GET_WORK_SUBMIT_TOKEN"; break;
           }
           cmd(NV906F_CTRL_GET_CLASS_ENGINEID);
@@ -410,8 +423,10 @@ int ioctl(int filedes, unsigned long request, void *argp) {
             printf("vaMode: %x\n", pAllocParams->vaMode);*/
             pprint((NV0080_ALLOC_PARAMETERS *)p->pAllocParms);
           } else if (p->hClass == AMPERE_CHANNEL_GPFIFO_A) {
-            /*NV_CHANNELGPFIFO_ALLOCATION_PARAMETERS *pAllocParams = (NV_CHANNELGPFIFO_ALLOCATION_PARAMETERS *)p->pAllocParms;
-            printf("hObjectError: %x\n", pAllocParams->hObjectError);
+            NV_CHANNELGPFIFO_ALLOCATION_PARAMETERS *pAllocParams = (NV_CHANNELGPFIFO_ALLOCATION_PARAMETERS *)p->pAllocParms;
+            //printf("gpFifoOffset: %llx (num %d)\n", pAllocParams->gpFifoOffset, gpFifoOffsets.size());
+            gpFifoOffsets[p->hObjectNew] = (uint32_t*)pAllocParams->gpFifoOffset;
+            /*printf("hObjectError: %x\n", pAllocParams->hObjectError);
             printf("hObjectBuffer: %x\n", pAllocParams->hObjectBuffer);
             printf("gpFifoOffset: %llx\n", pAllocParams->gpFifoOffset);
             printf("gpFifoEntries: %x\n", pAllocParams->gpFifoEntries);
@@ -484,8 +499,7 @@ int ioctl(int filedes, unsigned long request, void *argp) {
         break;
     }
     if (getenv("DMESG")) { usleep(50*1000); system("sudo dmesg -c"); }
-  } else {
-    // non nvidia ioctl
+  } else if (files.count(filedes)) {
     printf("non nvidia ioctl %d %s ", filedes, files[filedes].c_str());
     if (strcmp(files[filedes].c_str(), "/dev/nvidia-uvm") == 0) {
       //printf("UVM BULLSHIT BLOCKED\n");
