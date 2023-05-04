@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <cassert>
+#include <errno.h>
 #include <cstring>
 #include <stdint.h>
 #include <dlfcn.h>
@@ -41,6 +42,8 @@
 
 #include <map>
 std::map<int, std::string> files;
+
+#define printf(args...) fprintf(stderr, args)
 
 extern "C" {
 
@@ -126,7 +129,7 @@ int (*my_open)(const char *pathname, int flags, mode_t mode);
 int open(const char *pathname, int flags, mode_t mode) {
   if (my_open == NULL) my_open = reinterpret_cast<decltype(my_open)>(dlsym(RTLD_NEXT, "open"));
   int ret = my_open(pathname, flags, mode);
-  printf("open %s (0o%o) = %d\n", pathname, flags, ret);
+  //printf("open %s (0o%o) = %d\n", pathname, flags, ret);
   files[ret] = pathname;
   return ret;
 }
@@ -137,7 +140,7 @@ int (*my_open64)(const char *pathname, int flags, mode_t mode);
 int open64(const char *pathname, int flags, mode_t mode) {
   if (my_open64 == NULL) my_open64 = reinterpret_cast<decltype(my_open64)>(dlsym(RTLD_NEXT, "open64"));
   int ret = my_open64(pathname, flags, mode);
-  printf("open %s (0o%o) = %d\n", pathname, flags, ret);
+  //printf("open %s (0o%o) = %d\n", pathname, flags, ret);
   files[ret] = pathname;
   return ret;
 }
@@ -541,6 +544,10 @@ int ioctl(int filedes, unsigned long request, void *argp) {
         }
         case UVM_ENABLE_PEER_ACCESS: {
           pprint((UVM_ENABLE_PEER_ACCESS_PARAMS *)argp);
+          break;
+        }
+        case UVM_FREE: {
+          pprint((UVM_FREE_PARAMS *)argp);
           break;
         }
         default: {
